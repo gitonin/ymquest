@@ -1,0 +1,2619 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05010f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="You Man Quest - Défends la planète Disco ! FPS raycasting rétro-futuriste jouable au gyroscope.">
+<title>You Man Quest</title>
+<style>
+/* ============================================================
+   YOU MAN QUEST — Feuille de style
+   Ambiance : donjon électro-techno, néon cyan / magenta / violet
+   ============================================================ */
+
+:root{
+  --cyan:#00f0ff;
+  --magenta:#ff2bd6;
+  --violet:#8a2be2;
+  --gold:#ffd24a;
+  --bg:#05010f;
+  --panel:rgba(10,2,24,.82);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+html,body{
+  margin:0; padding:0; width:100%; height:100%;
+  background:var(--bg);
+  color:#eaf6ff;
+  font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif;
+  overflow:hidden;
+  overscroll-behavior:none;
+  touch-action:none;
+  user-select:none; -webkit-user-select:none;
+}
+
+body{
+  display:flex; align-items:center; justify-content:center;
+  background:
+    radial-gradient(circle at 50% 0%, #1b0736 0%, #05010f 60%),
+    var(--bg);
+}
+
+/* ---------- Scène 9:16 ---------- */
+/* Ratio cible 9:16. Sur un écran plus étroit que 9:16 (téléphones 20:9),
+   la largeur est bornée à 100vw et la scène occupe toute la hauteur :
+   le rendu s'adapte automatiquement au ratio réel. */
+#stage{
+  position:relative;
+  height:100vh; height:100dvh;
+  width:56.25vh; width:56.25dvh;      /* 9/16 */
+  max-width:100vw;
+  overflow:hidden;
+  background:#000;
+  box-shadow:0 0 60px rgba(138,43,226,.45), 0 0 120px rgba(0,240,255,.15);
+}
+
+#view{
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  display:block;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+  background:#000;
+}
+
+/* Effet CRT / scanlines par-dessus le canvas */
+#crt{
+  position:absolute; inset:0; pointer-events:none; z-index:5;
+  background:
+    repeating-linear-gradient(to bottom, rgba(0,0,0,.16) 0 1px, rgba(0,0,0,0) 1px 3px),
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%);
+  mix-blend-mode:multiply;
+  opacity:.75;
+}
+
+/* Flash dégâts / effets plein écran */
+#flash{
+  position:absolute; inset:0; pointer-events:none; z-index:6;
+  background:#ff0033; opacity:0;
+}
+#fade{
+  position:absolute; inset:0; pointer-events:none; z-index:40;
+  background:#000; opacity:0; transition:opacity .45s linear;
+}
+
+/* ============================================================
+   TYPOGRAPHIE NÉON
+   ============================================================ */
+.neon-title{
+  font-family:"Impact","Haettenschweiler","Arial Black",sans-serif;
+  letter-spacing:2px; line-height:.92;
+  text-transform:uppercase;
+  color:#fff;
+  text-shadow:
+    0 0 4px #fff,
+    0 0 12px var(--cyan),
+    0 0 24px var(--cyan),
+    0 0 48px var(--magenta),
+    0 0 80px var(--violet);
+  animation:flicker 5s infinite;
+}
+@keyframes flicker{
+  0%,18%,22%,25%,53%,57%,100%{ opacity:1 }
+  20%,24%,55%{ opacity:.72 }
+}
+
+.sub{
+  color:var(--magenta);
+  text-shadow:0 0 8px var(--magenta), 0 0 20px rgba(255,43,214,.5);
+  font-weight:bold; letter-spacing:1px;
+}
+
+/* ============================================================
+   ÉCRANS / OVERLAYS
+   ============================================================ */
+.screen{
+  position:absolute; inset:0; z-index:30;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2.2vh;
+  padding:4vh 6% calc(4vh + var(--safe-b));
+  text-align:center;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(138,43,226,.35), rgba(5,1,15,.93) 62%),
+    linear-gradient(180deg,#0a0118 0%,#12002a 50%,#05010f 100%);
+  overflow-y:auto;
+}
+.screen.hidden{ display:none; }
+
+.grid-bg{
+  position:absolute; inset:0; z-index:-1; opacity:.35; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(0,240,255,.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,43,214,.14) 1px, transparent 1px);
+  background-size:28px 28px;
+  mask-image:linear-gradient(180deg, transparent 0%, #000 45%, #000 100%);
+  -webkit-mask-image:linear-gradient(180deg, transparent 0%, #000 45%, #000 100%);
+  animation:scroll-grid 6s linear infinite;
+}
+@keyframes scroll-grid{ from{background-position:0 0,0 0} to{background-position:0 28px,28px 0} }
+
+#menu h1{ margin:0; font-size:clamp(34px,10.5vw,64px); }
+#menu h1 small{ display:block; font-size:.42em; letter-spacing:6px; color:var(--cyan);
+  text-shadow:0 0 10px var(--cyan); margin-bottom:.2em; }
+.tag{ margin:0; font-size:clamp(13px,3.9vw,20px); }
+
+.hint{
+  font-size:clamp(10px,2.9vw,13px); color:#9fd8ff; opacity:.85;
+  max-width:34ch; line-height:1.45; margin:0;
+}
+.hint b{ color:var(--gold); }
+
+/* ---------- Boutons ---------- */
+.btn{
+  appearance:none; border:2px solid var(--cyan);
+  background:linear-gradient(180deg, rgba(0,240,255,.16), rgba(138,43,226,.16));
+  color:#fff; font-weight:bold; font-family:inherit;
+  letter-spacing:3px; text-transform:uppercase;
+  font-size:clamp(14px,4.2vw,20px);
+  padding:.75em 1.6em; min-width:62%;
+  border-radius:10px; cursor:pointer;
+  text-shadow:0 0 8px var(--cyan);
+  box-shadow:0 0 14px rgba(0,240,255,.45), inset 0 0 18px rgba(0,240,255,.18);
+  transition:transform .08s ease, box-shadow .15s ease;
+  touch-action:manipulation;
+}
+.btn:active{ transform:scale(.96); box-shadow:0 0 26px rgba(0,240,255,.85), inset 0 0 26px rgba(0,240,255,.35); }
+.btn.magenta{ border-color:var(--magenta); text-shadow:0 0 8px var(--magenta);
+  box-shadow:0 0 14px rgba(255,43,214,.45), inset 0 0 18px rgba(255,43,214,.18);
+  background:linear-gradient(180deg, rgba(255,43,214,.16), rgba(138,43,226,.16)); }
+.btn.ghost{ border-color:rgba(255,255,255,.35); color:#cfe9ff; text-shadow:none;
+  box-shadow:none; background:rgba(255,255,255,.05); font-size:clamp(11px,3.2vw,14px);
+  padding:.6em 1.2em; min-width:auto; letter-spacing:2px; }
+.btn.big{ font-size:clamp(18px,5.6vw,26px); padding:.62em 1.4em; }
+
+/* ---------- Modal règles / options ---------- */
+.modal{
+  position:absolute; inset:0; z-index:35;
+  display:flex; align-items:center; justify-content:center;
+  padding:3vh 4%;
+  background:rgba(2,0,8,.88); backdrop-filter:blur(3px);
+}
+.modal.hidden{ display:none; }
+.modal-box{
+  width:100%; max-height:92%; overflow-y:auto;
+  background:var(--panel);
+  border:2px solid var(--violet);
+  box-shadow:0 0 30px rgba(138,43,226,.6), inset 0 0 40px rgba(138,43,226,.12);
+  border-radius:12px; padding:4% 5%;
+  text-align:left;
+}
+.modal-box h2{
+  margin:.1em 0 .6em; font-size:clamp(18px,5.4vw,26px);
+  color:var(--cyan); text-shadow:0 0 10px var(--cyan);
+  text-transform:uppercase; letter-spacing:2px; text-align:center;
+}
+.modal-box h3{
+  margin:1em 0 .35em; font-size:clamp(12px,3.6vw,16px);
+  color:var(--magenta); text-shadow:0 0 8px rgba(255,43,214,.7);
+  text-transform:uppercase; letter-spacing:1px;
+}
+.modal-box p, .modal-box li{ font-size:clamp(11px,3.2vw,14px); line-height:1.5; color:#dceeff; }
+.modal-box ul{ margin:.2em 0; padding-left:1.1em; }
+.modal-box li{ margin:.25em 0; }
+.key{
+  display:inline-block; background:#000; border:1px solid var(--cyan); color:var(--cyan);
+  border-radius:4px; padding:0 .4em; font-family:monospace; font-size:.95em;
+  box-shadow:0 0 6px rgba(0,240,255,.5);
+}
+.modal-actions{ display:flex; gap:8px; justify-content:center; margin-top:1.1em; flex-wrap:wrap; }
+
+/* ---------- Réglages (sliders) ---------- */
+.row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:.55em 0; }
+.row label{ font-size:clamp(10px,3vw,13px); color:#bfe6ff; letter-spacing:1px; }
+input[type=range]{
+  -webkit-appearance:none; appearance:none; flex:1; height:22px; background:transparent;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:5px; border-radius:3px;
+  background:linear-gradient(90deg,var(--violet),var(--cyan));
+  box-shadow:0 0 8px rgba(0,240,255,.6);
+}
+input[type=range]::-moz-range-track{
+  height:5px; border-radius:3px;
+  background:linear-gradient(90deg,var(--violet),var(--cyan));
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:18px; height:18px; margin-top:-7px; border-radius:50%;
+  background:#fff; box-shadow:0 0 10px var(--cyan); border:none;
+}
+input[type=range]::-moz-range-thumb{
+  width:18px; height:18px; border-radius:50%; background:#fff; border:none;
+  box-shadow:0 0 10px var(--cyan);
+}
+.val{ font-size:11px; color:var(--gold); min-width:3.4em; text-align:right; font-family:monospace; }
+
+/* ============================================================
+   HUD DE JEU
+   ============================================================ */
+#hud{ position:absolute; inset:0; z-index:10; pointer-events:none; }
+#hud.hidden{ display:none; }
+
+.hud-top{
+  position:absolute; top:calc(6px + env(safe-area-inset-top,0px)); left:0; right:0;
+  display:flex; justify-content:space-between; align-items:flex-start;
+  padding:0 10px; font-weight:bold;
+}
+.hud-chip{
+  background:rgba(4,0,12,.55); border:1px solid rgba(0,240,255,.5);
+  border-radius:20px; padding:4px 10px;
+  font-size:clamp(11px,3.3vw,15px); letter-spacing:1px;
+  color:#fff; text-shadow:0 0 8px var(--cyan);
+  box-shadow:0 0 10px rgba(0,240,255,.25);
+  display:flex; align-items:center; gap:6px;
+}
+.hud-chip.lives{ border-color:rgba(255,43,214,.55); text-shadow:0 0 8px var(--magenta);
+  box-shadow:0 0 10px rgba(255,43,214,.25); }
+#lifeIcons{ letter-spacing:0; font-size:1.05em; }
+.life-lost{ opacity:.25; filter:grayscale(1); }
+
+#levelName{
+  position:absolute; top:calc(38px + env(safe-area-inset-top,0px)); left:0; right:0;
+  text-align:center; font-size:clamp(9px,2.7vw,12px); letter-spacing:4px;
+  color:#8fd6ff; opacity:.75; text-transform:uppercase;
+}
+
+/* Toast de message */
+#toast{
+  position:absolute; top:22%; left:50%; transform:translate(-50%,0);
+  background:rgba(4,0,12,.72); border:1px solid var(--gold);
+  color:var(--gold); text-shadow:0 0 10px rgba(255,210,74,.8);
+  padding:8px 16px; border-radius:8px; font-weight:bold; letter-spacing:1px;
+  font-size:clamp(12px,3.6vw,17px); text-align:center; white-space:pre-line;
+  opacity:0; transition:opacity .25s ease, transform .25s ease;
+  box-shadow:0 0 20px rgba(255,210,74,.35);
+  max-width:80%;
+}
+#toast.show{ opacity:1; transform:translate(-50%,-8px); }
+
+/* Viseur */
+#cross{
+  position:absolute; left:50%; top:47%; transform:translate(-50%,-50%);
+  width:34px; height:34px; opacity:.85;
+}
+#cross:before, #cross:after{
+  content:""; position:absolute; background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan);
+}
+#cross:before{ left:50%; top:0; width:2px; height:100%; margin-left:-1px;
+  background:linear-gradient(180deg,var(--cyan),transparent 38%,transparent 62%,var(--cyan)); }
+#cross:after{ top:50%; left:0; height:2px; width:100%; margin-top:-1px;
+  background:linear-gradient(90deg,var(--cyan),transparent 38%,transparent 62%,var(--cyan)); }
+#cross.hit{ animation:crosshit .25s ease; }
+@keyframes crosshit{ 50%{ transform:translate(-50%,-50%) scale(1.5); filter:hue-rotate(120deg);} }
+
+/* Mini-carte */
+#minimap{
+  position:absolute; left:10px; bottom:calc(150px + var(--safe-b));
+  width:74px; height:74px; border:1px solid rgba(0,240,255,.45);
+  border-radius:6px; background:rgba(2,0,10,.5);
+  box-shadow:0 0 12px rgba(0,240,255,.25);
+}
+#minimap.hidden{ display:none; }
+
+/* Barre de recharge */
+#reloadWrap{
+  position:absolute; right:10px; bottom:calc(150px + var(--safe-b));
+  width:96px; text-align:right; pointer-events:none;
+}
+#reloadBar{
+  height:7px; width:100%; background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,43,214,.5); border-radius:4px; overflow:hidden;
+}
+#reloadFill{
+  height:100%; width:100%;
+  background:linear-gradient(90deg,var(--magenta),var(--cyan));
+  box-shadow:0 0 10px var(--cyan);
+  transform-origin:left center;
+}
+#reloadTxt{ font-size:10px; letter-spacing:1px; color:#ffb8ee; text-shadow:0 0 6px var(--magenta); }
+
+/* ============================================================
+   CONTRÔLES TACTILES
+   ============================================================ */
+#touch{ position:absolute; inset:0; z-index:12; pointer-events:none; }
+#touch.hidden{ display:none; }
+
+#dpad{
+  position:absolute; left:10px; bottom:calc(12px + var(--safe-b));
+  width:132px; height:132px; pointer-events:none;
+}
+.pad{
+  position:absolute; width:44px; height:44px;
+  border:2px solid rgba(0,240,255,.6); border-radius:10px;
+  background:rgba(0,240,255,.10);
+  box-shadow:0 0 12px rgba(0,240,255,.3), inset 0 0 12px rgba(0,240,255,.15);
+  color:var(--cyan); font-size:20px; line-height:40px; text-align:center;
+  pointer-events:auto; touch-action:none;
+  text-shadow:0 0 8px var(--cyan);
+}
+.pad.on{ background:rgba(0,240,255,.42); box-shadow:0 0 22px var(--cyan); color:#fff; }
+#padUp{ left:44px; top:0; }
+#padDown{ left:44px; top:88px; }
+#padLeft{ left:0; top:44px; }
+#padRight{ left:88px; top:44px; }
+
+#fireBtn{
+  position:absolute; right:14px; bottom:calc(24px + var(--safe-b));
+  width:96px; height:96px; border-radius:50%;
+  border:3px solid var(--magenta);
+  background:radial-gradient(circle at 35% 30%, rgba(255,43,214,.55), rgba(90,0,60,.6) 70%);
+  box-shadow:0 0 22px rgba(255,43,214,.65), inset 0 0 24px rgba(255,43,214,.35);
+  color:#fff; font-weight:bold; letter-spacing:2px; font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  text-shadow:0 0 10px var(--magenta);
+  pointer-events:auto; touch-action:none;
+}
+#fireBtn.on{ transform:scale(.93); box-shadow:0 0 40px var(--magenta), inset 0 0 30px rgba(255,255,255,.5); }
+#fireBtn.cooling{ opacity:.45; }
+
+#pauseBtn{
+  position:absolute; right:10px; top:calc(44px + env(safe-area-inset-top,0px));
+  width:36px; height:32px; border-radius:8px;
+  border:1px solid rgba(255,255,255,.35); background:rgba(4,0,12,.5);
+  color:#cfe9ff; font-size:14px; line-height:30px; text-align:center;
+  pointer-events:auto; touch-action:manipulation;
+}
+
+/* Joystick virtuel (fallback sans gyroscope, optionnel) */
+#stickZone{
+  position:absolute; left:0; bottom:0; width:50%; height:42%;
+  pointer-events:none;
+}
+
+/* ============================================================
+   ÉCRAN DE FIN / ORIENTATION
+   ============================================================ */
+#rotate{
+  position:fixed; inset:0; z-index:100; display:none;
+  align-items:center; justify-content:center; flex-direction:column; gap:14px;
+  background:#05010f; text-align:center; padding:20px;
+}
+#rotate .ph{ font-size:52px; animation:rot 2.2s ease-in-out infinite; }
+@keyframes rot{ 0%,100%{ transform:rotate(0) } 50%{ transform:rotate(-90deg) } }
+@media (orientation:landscape) and (max-height:520px){
+  #rotate{ display:flex; }
+}
+
+.win-ball{
+  width:min(38vw,150px); aspect-ratio:1; border-radius:50%;
+  background:
+    repeating-conic-gradient(from 0deg, #fff 0 6deg, #9be9ff 6deg 12deg, #ff7be0 12deg 18deg, #b18bff 18deg 24deg);
+  box-shadow:0 0 40px #fff, 0 0 90px var(--magenta), 0 0 140px var(--cyan);
+  animation:spin 6s linear infinite;
+}
+@keyframes spin{ to{ transform:rotate(360deg) } }
+
+.stats{ font-size:clamp(11px,3.3vw,14px); color:#bfe6ff; line-height:1.6; }
+.stats b{ color:var(--gold); }
+
+.badge{
+  display:inline-block; padding:2px 10px; border-radius:20px; font-size:11px;
+  letter-spacing:2px; text-transform:uppercase; border:1px solid var(--cyan);
+  color:var(--cyan); box-shadow:0 0 10px rgba(0,240,255,.4);
+}
+.err{ color:#ff8080; font-size:11px; min-height:1.2em; }
+</style>
+</head>
+<body>
+
+<!-- Message si l'appareil est en paysage -->
+<div id="rotate">
+  <div class="ph">📱</div>
+  <div class="neon-title" style="font-size:22px">Tourne ton appareil</div>
+  <div class="hint">You Man Quest se joue en <b>mode portrait</b> (9:16).</div>
+</div>
+
+<div id="stage">
+  <!-- ====== RENDU 3D ====== -->
+  <canvas id="view"></canvas>
+  <div id="crt"></div>
+  <div id="flash"></div>
+
+  <!-- ====== HUD ====== -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="hud-chip"><span>💿</span><span id="vinylCount">0/5</span></div>
+      <div class="hud-chip lives"><span id="lifeIcons">❤️❤️❤️</span></div>
+    </div>
+    <div id="levelName">Donjon Électro-Techno</div>
+    <div id="cross"></div>
+    <canvas id="minimap" width="74" height="74"></canvas>
+    <div id="reloadWrap">
+      <div id="reloadTxt">ÉNERGIE</div>
+      <div id="reloadBar"><div id="reloadFill"></div></div>
+    </div>
+    <div id="toast"></div>
+  </div>
+
+  <!-- ====== CONTRÔLES TACTILES ====== -->
+  <div id="touch" class="hidden">
+    <div id="pauseBtn">❚❚</div>
+    <div id="dpad">
+      <div class="pad" id="padUp" data-act="fwd">▲</div>
+      <div class="pad" id="padLeft" data-act="left">◀</div>
+      <div class="pad" id="padRight" data-act="right">▶</div>
+      <div class="pad" id="padDown" data-act="back">▼</div>
+    </div>
+    <div id="fireBtn">TIR</div>
+  </div>
+
+  <!-- ====== ÉCRAN D'ACCUEIL ====== -->
+  <div id="menu" class="screen">
+    <div class="grid-bg"></div>
+    <h1 class="neon-title"><small>◤ 3000 ◢</small>You Man<br>Quest</h1>
+    <p class="tag sub">Défends la planète Disco !</p>
+    <button class="btn big" id="btnPlay">Jouer</button>
+    <button class="btn magenta" id="btnRules">Règles</button>
+    <button class="btn ghost" id="btnOptions">⚙ Options</button>
+    <button class="btn ghost" id="btnGyro">🧭 Activer le gyroscope</button>
+    <p class="hint" id="gyroState">Optimisé mobile — <b>Penchez pour avancer/reculer</b>, touchez pour tirer.<br>Sur ordinateur : <b>Z/W S Q/A D</b> + <b>Espace</b>.</p>
+    <p class="err" id="gyroErr"></p>
+  </div>
+
+  <!-- ====== MODAL RÈGLES ====== -->
+  <div id="rules" class="modal hidden">
+    <div class="modal-box">
+      <h2>Règles du jeu</h2>
+      <p>An 3000. Tu es le <b>You&nbsp;Man du futur</b>, héros venu défendre la
+      <b>planète Disco</b>. Explore le donjon électro-techno, récupère les
+      <b>vinyls sacrés</b> et anéantis les fantômes qui menacent le groove universel.
+      Au bout du voyage&nbsp;: la <b>boule disco cosmique</b>.</p>
+
+      <h3>🎯 Objectif</h3>
+      <ul>
+        <li>Ramasse <b>5 vinyls</b> cachés dans le donjon.</li>
+        <li>Élimine les fantômes qui te poursuivent.</li>
+        <li>Atteins la <b>boule disco finale</b> pour sauver la planète.</li>
+      </ul>
+
+      <h3>👻 Ennemis</h3>
+      <ul>
+        <li>Fantômes translucides, poursuite lente mais tenace.</li>
+        <li>Contact = l'écran clignote rouge et tu perds une vie (<b>3 vies</b>).</li>
+        <li>Il faut <b>3 projectiles</b> pour en dissiper un.</li>
+      </ul>
+
+      <h3>🟨 Niveau spécial : les Backrooms</h3>
+      <ul>
+        <li>S'ouvre après <b>3 vinyls</b> ramassés.</li>
+        <li>Couloirs jaunes-beige infinis, lumière fluorescente, aucune sortie évidente.</li>
+        <li>Pas de fantômes… juste la sensation d'enfermement. Trouve les 2 derniers vinyls.</li>
+      </ul>
+
+      <h3>📱 Contrôles mobile</h3>
+      <ul>
+        <li><b>Gyroscope</b> : pencher l'appareil <b>vers l'avant</b> = avancer, <b>vers l'arrière</b> = reculer, inclinaison latérale = tourner.</li>
+        <li><b>Flèches tactiles</b> (en bas à gauche) : priorité sur le gyroscope.</li>
+        <li><b>Gros bouton TIR</b> (à droite) : un tir toutes les 0,5&nbsp;s.</li>
+        <li>Sensibilité et recalibrage dans <b>Options</b>.</li>
+      </ul>
+
+      <h3>⌨️ Contrôles ordinateur</h3>
+      <ul>
+        <li><span class="key">Z</span>/<span class="key">W</span> avancer &nbsp;·&nbsp; <span class="key">S</span> reculer</li>
+        <li><span class="key">Q</span>/<span class="key">A</span> tourner à gauche &nbsp;·&nbsp; <span class="key">D</span> tourner à droite</li>
+        <li><span class="key">←</span> <span class="key">→</span> tourner &nbsp;·&nbsp; <span class="key">↑</span> <span class="key">↓</span> avancer/reculer</li>
+        <li><span class="key">Espace</span> tirer &nbsp;·&nbsp; <span class="key">Échap</span> pause / menu</li>
+      </ul>
+      <div class="modal-actions">
+        <button class="btn" id="btnRulesClose">Compris !</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== MODAL OPTIONS ====== -->
+  <div id="options" class="modal hidden">
+    <div class="modal-box">
+      <h2>Options</h2>
+
+      <h3>Gyroscope</h3>
+      <div class="row">
+        <label for="sensRange">Sensibilité</label>
+        <input type="range" id="sensRange" min="0.3" max="2.5" step="0.1" value="1">
+        <span class="val" id="sensVal">1.0×</span>
+      </div>
+      <div class="row">
+        <label for="deadRange">Zone morte</label>
+        <input type="range" id="deadRange" min="0" max="20" step="1" value="6">
+        <span class="val" id="deadVal">6°</span>
+      </div>
+      <div class="row">
+        <label for="gyroChk">Gyroscope actif</label>
+        <input type="checkbox" id="gyroChk" checked>
+      </div>
+      <div class="modal-actions" style="margin:.4em 0 .8em">
+        <button class="btn ghost" id="btnCalib">🧭 Recalibrer</button>
+        <button class="btn ghost" id="btnGyro2">Autoriser (iOS)</button>
+      </div>
+      <p class="hint" id="gyroState2" style="margin:0"></p>
+
+      <h3>Audio</h3>
+      <div class="row">
+        <label for="musRange">Musique</label>
+        <input type="range" id="musRange" min="0" max="1" step="0.05" value="0.5">
+        <span class="val" id="musVal">50%</span>
+      </div>
+      <div class="row">
+        <label for="sfxRange">Effets</label>
+        <input type="range" id="sfxRange" min="0" max="1" step="0.05" value="0.7">
+        <span class="val" id="sfxVal">70%</span>
+      </div>
+
+      <h3>Affichage</h3>
+      <div class="row">
+        <label for="qualRange">Qualité de rendu</label>
+        <input type="range" id="qualRange" min="0.5" max="1.6" step="0.1" value="1">
+        <span class="val" id="qualVal">1.0×</span>
+      </div>
+      <div class="row">
+        <label for="mapChk">Mini-carte</label>
+        <input type="checkbox" id="mapChk" checked>
+      </div>
+      <div class="row">
+        <label for="crtChk">Effet CRT</label>
+        <input type="checkbox" id="crtChk" checked>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" id="btnOptClose">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== MENU PAUSE ====== -->
+  <div id="pause" class="screen hidden">
+    <div class="grid-bg"></div>
+    <h1 class="neon-title" style="font-size:clamp(26px,8vw,44px)">Pause</h1>
+    <p class="hint" id="pauseInfo"></p>
+    <button class="btn big" id="btnResume">Reprendre</button>
+    <button class="btn ghost" id="btnOptions2">⚙ Options</button>
+    <button class="btn ghost" id="btnRules2">Règles</button>
+    <button class="btn magenta" id="btnQuit">Quitter</button>
+  </div>
+
+  <!-- ====== VICTOIRE ====== -->
+  <div id="win" class="screen hidden">
+    <div class="grid-bg"></div>
+    <div class="win-ball"></div>
+    <h1 class="neon-title" style="font-size:clamp(26px,8.2vw,46px)">Victoire !</h1>
+    <p class="tag sub">Tu as sauvé la planète Disco !</p>
+    <p class="stats" id="winStats"></p>
+    <button class="btn big" id="btnReplay">Rejouer</button>
+  </div>
+
+  <!-- ====== GAME OVER ====== -->
+  <div id="over" class="screen hidden">
+    <div class="grid-bg"></div>
+    <div style="font-size:64px;filter:drop-shadow(0 0 18px #ff2bd6)">👻</div>
+    <h1 class="neon-title" style="font-size:clamp(24px,7.4vw,40px)">Groove<br>Interrompu</h1>
+    <p class="tag sub">Les fantômes ont eu ta platine…</p>
+    <p class="stats" id="overStats"></p>
+    <button class="btn big" id="btnRetry">Réessayer</button>
+    <button class="btn ghost" id="btnMenu2">Menu principal</button>
+  </div>
+
+  <div id="fade"></div>
+</div>
+
+<script>
+"use strict";
+/* ================================================================
+   YOU MAN QUEST — moteur raycasting pseudo-3D, JS vanilla
+   ----------------------------------------------------------------
+   Sections :
+     1. Utilitaires & état global
+     2. Textures & sprites procéduraux
+     3. Génération des niveaux
+     4. Audio (Web Audio API)
+     5. Entrées : clavier / tactile / gyroscope
+     6. Logique de jeu : update()
+     7. Rendu : castRays() / drawSprites() / render()
+     8. Boucle principale & interface (menus)
+   ================================================================ */
+
+/* ================================================================
+   1. UTILITAIRES & ÉTAT GLOBAL
+   ================================================================ */
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const TAU = Math.PI * 2;
+
+/** Générateur pseudo-aléatoire déterministe (mulberry32) */
+function makeRng(seed){
+  let t = seed >>> 0;
+  return function(){
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const canvas = $("view");
+const ctx = canvas.getContext("2d", { alpha:false });
+const mmCanvas = $("minimap");
+const mmCtx = mmCanvas.getContext("2d");
+
+/** Résolution interne du rendu (adaptative) */
+let RW = 264, RH = 470;
+
+/** États du jeu */
+const STATE = { MENU:"menu", PLAY:"play", PAUSE:"pause", WIN:"win", OVER:"over", TRANSITION:"transition" };
+let state = STATE.MENU;
+
+/** Réglages persistés en mémoire (pas de stockage réseau/local requis) */
+const settings = {
+  gyroEnabled: true,
+  sensitivity: 1.0,
+  deadzone: 6,
+  music: 0.5,
+  sfx: 0.7,
+  quality: 1.0,
+  minimap: true,
+  crt: true
+};
+
+/** Le joueur */
+const player = {
+  x: 2.5, y: 2.5,
+  dirX: 1, dirY: 0,
+  planeX: 0, planeY: 0.66,   // plan caméra (FOV ~66°)
+  angle: 0,
+  lives: 3,
+  invuln: 0,
+  bob: 0,
+  stepAcc: 0,
+  hurtFx: 0
+};
+
+/** Progression */
+const game = {
+  vinyls: 0,
+  totalVinyls: 5,
+  kills: 0,
+  shots: 0,
+  time: 0,
+  levelIndex: 0,      // 0 = donjon, 1 = backrooms, 2 = salle disco
+  cooldown: 0,
+  fireRate: 0.5,
+  seed: 0
+};
+
+let level = null;               // niveau courant
+let sprites = [];               // entités (vinyls, fantômes, projectiles, portail, boule)
+let zBuffer = new Float32Array(RW);
+let particles = [];             // particules (dispersion fantômes, ramassage)
+
+/* ================================================================
+   2. TEXTURES & SPRITES PROCÉDURAUX
+   ================================================================ */
+const TEX_SIZE = 64;
+const textures = {};   // id -> {canvas, data(ImageData non utilisé), dark}
+
+function newCanvas(w, h){
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  return c;
+}
+
+/** Assombrit une copie d'une texture (faces Nord/Sud vs Est/Ouest) */
+function darkenCopy(src, amount){
+  const c = newCanvas(src.width, src.height);
+  const g = c.getContext("2d");
+  g.drawImage(src, 0, 0);
+  g.globalCompositeOperation = "source-atop";
+  g.fillStyle = `rgba(0,0,0,${amount})`;
+  g.fillRect(0, 0, c.width, c.height);
+  return c;
+}
+
+/** Fabrique toutes les textures murales. */
+function buildTextures(){
+  const S = TEX_SIZE;
+
+  // --- 1 : brique néon cyan ---
+  {
+    const c = newCanvas(S,S), g = c.getContext("2d");
+    g.fillStyle = "#07001a"; g.fillRect(0,0,S,S);
+    g.strokeStyle = "rgba(0,240,255,.85)"; g.lineWidth = 1;
+    for(let row=0; row<4; row++){
+      const y = row*16;
+      g.beginPath(); g.moveTo(0,y+0.5); g.lineTo(S,y+0.5); g.stroke();
+      const off = (row%2)? 0 : 16;
+      for(let k=0;k<2;k++){
+        const x = off + k*32 + 0.5;
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x, y+16); g.stroke();
+      }
+    }
+    // reflets internes
+    g.fillStyle = "rgba(0,240,255,.10)";
+    for(let row=0; row<4; row++) g.fillRect(2, row*16+3, S-4, 4);
+    g.strokeStyle = "rgba(255,43,214,.5)";
+    g.beginPath(); g.moveTo(0, 32.5); g.lineTo(S, 32.5); g.stroke();
+    textures[1] = { light:c, dark:darkenCopy(c,.38) };
+  }
+
+  // --- 2 : panneau magenta à lignes verticales ---
+  {
+    const c = newCanvas(S,S), g = c.getContext("2d");
+    const grd = g.createLinearGradient(0,0,0,S);
+    grd.addColorStop(0,"#1a0026"); grd.addColorStop(.5,"#2b0033"); grd.addColorStop(1,"#0d0014");
+    g.fillStyle = grd; g.fillRect(0,0,S,S);
+    for(let x=4; x<S; x+=8){
+      g.fillStyle = (x%16===4) ? "rgba(255,43,214,.75)" : "rgba(138,43,226,.45)";
+      g.fillRect(x, 6, 2, S-12);
+    }
+    g.strokeStyle = "rgba(255,43,214,.9)"; g.lineWidth = 2;
+    g.strokeRect(1,1,S-2,S-2);
+    g.fillStyle = "rgba(0,240,255,.55)";
+    g.fillRect(0, S/2-1, S, 2);
+    textures[2] = { light:c, dark:darkenCopy(c,.38) };
+  }
+
+  // --- 3 : circuit violet ---
+  {
+    const c = newCanvas(S,S), g = c.getContext("2d");
+    g.fillStyle = "#0b0020"; g.fillRect(0,0,S,S);
+    g.strokeStyle = "rgba(138,43,226,.85)"; g.lineWidth = 2;
+    const rng = makeRng(1337);
+    for(let i=0;i<9;i++){
+      let x = Math.floor(rng()*8)*8, y = Math.floor(rng()*8)*8;
+      g.beginPath(); g.moveTo(x,y);
+      for(let s=0;s<3;s++){
+        if(rng()<.5) x += (rng()<.5?-1:1)*16; else y += (rng()<.5?-1:1)*16;
+        x = clamp(x,0,S); y = clamp(y,0,S);
+        g.lineTo(x,y);
+      }
+      g.stroke();
+      g.fillStyle = "rgba(0,240,255,.9)";
+      g.fillRect(x-2,y-2,4,4);
+    }
+    g.strokeStyle = "rgba(0,240,255,.35)"; g.lineWidth = 1;
+    g.strokeRect(.5,.5,S-1,S-1);
+    textures[3] = { light:c, dark:darkenCopy(c,.4) };
+  }
+
+  // --- 4 : porte / sas néon ---
+  {
+    const c = newCanvas(S,S), g = c.getContext("2d");
+    g.fillStyle = "#100020"; g.fillRect(0,0,S,S);
+    g.fillStyle = "#1d0033"; g.fillRect(4,2,S-8,S-2);
+    g.strokeStyle = "rgba(255,210,74,.9)"; g.lineWidth = 3;
+    g.strokeRect(5,3,S-10,S-4);
+    g.fillStyle = "rgba(0,240,255,.85)";
+    g.fillRect(S/2-1, 6, 2, S-10);
+    for(let y=12;y<S-8;y+=10){
+      g.fillStyle = "rgba(255,43,214,.5)";
+      g.fillRect(10, y, S-20, 3);
+    }
+    textures[4] = { light:c, dark:darkenCopy(c,.35) };
+  }
+
+  // --- 5 : papier peint Backrooms (jaune-beige) ---
+  {
+    const c = newCanvas(S,S), g = c.getContext("2d");
+    const grd = g.createLinearGradient(0,0,0,S);
+    grd.addColorStop(0,"#d9c877"); grd.addColorStop(.72,"#c3b25f"); grd.addColorStop(1,"#8e7f3d");
+    g.fillStyle = grd; g.fillRect(0,0,S,S);
+    // rayures verticales du papier peint
+    for(let x=0;x<S;x+=4){
+      g.fillStyle = (x%8===0)? "rgba(255,244,170,.22)" : "rgba(120,105,45,.16)";
+      g.fillRect(x,0,2,S);
+    }
+    // taches d'humidité
+    const rng = makeRng(77);
+    for(let i=0;i<10;i++){
+      const x = rng()*S, y = rng()*S, r = 2+rng()*6;
+      g.fillStyle = `rgba(110,95,40,${.06+rng()*.12})`;
+      g.beginPath(); g.arc(x,y,r,0,TAU); g.fill();
+    }
+    // plinthe
+    g.fillStyle = "#6d5f2c"; g.fillRect(0,S-7,S,7);
+    g.fillStyle = "rgba(0,0,0,.25)"; g.fillRect(0,S-8,S,1);
+    textures[5] = { light:c, dark:darkenCopy(c,.3) };
+  }
+
+  // --- 6 : mur de la salle disco (miroirs) ---
+  {
+    const c = newCanvas(S,S), g = c.getContext("2d");
+    g.fillStyle = "#0a0016"; g.fillRect(0,0,S,S);
+    const rng = makeRng(4242);
+    for(let y=0;y<S;y+=8) for(let x=0;x<S;x+=8){
+      const t = rng();
+      const col = t<.25 ? "rgba(0,240,255,.5)" : t<.5 ? "rgba(255,43,214,.5)"
+                : t<.75 ? "rgba(138,43,226,.5)" : "rgba(255,210,74,.4)";
+      g.fillStyle = col; g.fillRect(x+1,y+1,6,6);
+    }
+    g.strokeStyle = "rgba(255,255,255,.18)";
+    for(let y=0;y<=S;y+=8){ g.beginPath(); g.moveTo(0,y+.5); g.lineTo(S,y+.5); g.stroke(); }
+    for(let x=0;x<=S;x+=8){ g.beginPath(); g.moveTo(x+.5,0); g.lineTo(x+.5,S); g.stroke(); }
+    textures[6] = { light:c, dark:darkenCopy(c,.35) };
+  }
+
+  // --- 7 : Backrooms, variante moquette/mur sombre ---
+  {
+    const c = newCanvas(S,S), g = c.getContext("2d");
+    g.fillStyle = "#b9a755"; g.fillRect(0,0,S,S);
+    const rng = makeRng(909);
+    for(let i=0;i<260;i++){
+      g.fillStyle = `rgba(${120+rng()*60|0},${105+rng()*60|0},${40+rng()*40|0},.5)`;
+      g.fillRect(rng()*S|0, rng()*S|0, 2, 2);
+    }
+    g.fillStyle = "rgba(255,250,190,.25)";
+    g.fillRect(0,0,S,3);
+    textures[7] = { light:c, dark:darkenCopy(c,.3) };
+  }
+}
+
+/* ---------------- Sprites ---------------- */
+const SPR = {};
+
+function buildSprites(){
+  // --- Vinyle ---
+  {
+    const S = 64, c = newCanvas(S,S), g = c.getContext("2d");
+    g.translate(S/2,S/2);
+    // halo
+    let hal = g.createRadialGradient(0,0,10,0,0,30);
+    hal.addColorStop(0,"rgba(255,210,74,.35)"); hal.addColorStop(1,"rgba(255,210,74,0)");
+    g.fillStyle = hal; g.beginPath(); g.arc(0,0,30,0,TAU); g.fill();
+    // disque
+    g.fillStyle = "#0a0a0f"; g.beginPath(); g.arc(0,0,24,0,TAU); g.fill();
+    // sillons arc-en-ciel
+    for(let r=22;r>10;r-=2){
+      g.strokeStyle = `hsla(${(r*22)%360},100%,65%,.55)`;
+      g.lineWidth = 1;
+      g.beginPath(); g.arc(0,0,r,0,TAU); g.stroke();
+    }
+    // étiquette
+    g.fillStyle = "#ff2bd6"; g.beginPath(); g.arc(0,0,9,0,TAU); g.fill();
+    g.fillStyle = "#00f0ff"; g.beginPath(); g.arc(0,0,4,0,TAU); g.fill();
+    g.fillStyle = "#05010f"; g.beginPath(); g.arc(0,0,1.6,0,TAU); g.fill();
+    // reflet
+    g.strokeStyle = "rgba(255,255,255,.75)"; g.lineWidth = 3;
+    g.beginPath(); g.arc(0,0,18,-1.2,-0.45); g.stroke();
+    SPR.vinyl = c;
+  }
+
+  // --- Fantôme (normal + version touchée) ---
+  SPR.ghost = makeGhost(false);
+  SPR.ghostHit = makeGhost(true);
+  function makeGhost(hit){
+    const W = 64, H = 88, c = newCanvas(W,H), g = c.getContext("2d");
+    const body = hit ? "#ffd7e8" : "#dff4ff";
+    const edge = hit ? "#ff2bd6" : "#7fdcff";
+    // halo
+    const hal = g.createRadialGradient(W/2,H*.45,6,W/2,H*.45,34);
+    hal.addColorStop(0, hit?"rgba(255,90,180,.55)":"rgba(120,220,255,.5)");
+    hal.addColorStop(1,"rgba(0,0,0,0)");
+    g.fillStyle = hal; g.fillRect(0,0,W,H);
+    // corps : dôme + bas ondulé
+    g.beginPath();
+    g.moveTo(10, H-16);
+    g.lineTo(10, 34);
+    g.arc(W/2, 34, 22, Math.PI, 0);
+    g.lineTo(54, H-16);
+    // vagues du bas
+    const waves = 4, step = (54-10)/waves;
+    for(let i=0;i<waves;i++){
+      const x0 = 54 - i*step, x1 = x0 - step;
+      g.quadraticCurveTo((x0+x1)/2, H - (i%2? 30 : 2), x1, H-16);
+    }
+    g.closePath();
+    const grd = g.createLinearGradient(0,10,0,H);
+    grd.addColorStop(0, body);
+    grd.addColorStop(1, hit ? "rgba(255,43,214,.15)" : "rgba(120,200,255,.12)");
+    g.fillStyle = grd; g.fill();
+    g.strokeStyle = edge; g.lineWidth = 2; g.stroke();
+    // yeux
+    g.fillStyle = hit ? "#5a0030" : "#08132b";
+    g.beginPath(); g.ellipse(W/2-8, 34, 4.5, 6.5, 0, 0, TAU); g.fill();
+    g.beginPath(); g.ellipse(W/2+8, 34, 4.5, 6.5, 0, 0, TAU); g.fill();
+    g.fillStyle = "rgba(255,255,255,.9)";
+    g.fillRect(W/2-9, 31, 2, 2); g.fillRect(W/2+7, 31, 2, 2);
+    // bouche
+    g.beginPath(); g.ellipse(W/2, 50, 5, 7, 0, 0, TAU);
+    g.fillStyle = hit ? "rgba(120,0,50,.8)" : "rgba(8,19,43,.75)"; g.fill();
+    return c;
+  }
+
+  // --- Projectile (boule d'énergie) ---
+  {
+    const S = 40, c = newCanvas(S,S), g = c.getContext("2d");
+    const grd = g.createRadialGradient(S/2,S/2,1,S/2,S/2,S/2);
+    grd.addColorStop(0,"#ffffff");
+    grd.addColorStop(.25,"#9ffcff");
+    grd.addColorStop(.55,"rgba(0,240,255,.75)");
+    grd.addColorStop(.8,"rgba(255,43,214,.35)");
+    grd.addColorStop(1,"rgba(255,43,214,0)");
+    g.fillStyle = grd; g.beginPath(); g.arc(S/2,S/2,S/2,0,TAU); g.fill();
+    SPR.bolt = c;
+  }
+
+  // --- Portail ---
+  {
+    const W = 64, H = 96, c = newCanvas(W,H), g = c.getContext("2d");
+    const grd = g.createRadialGradient(W/2,H/2,4,W/2,H/2,42);
+    grd.addColorStop(0,"rgba(255,255,255,.95)");
+    grd.addColorStop(.3,"rgba(0,255,180,.75)");
+    grd.addColorStop(.65,"rgba(0,240,255,.4)");
+    grd.addColorStop(1,"rgba(0,240,255,0)");
+    g.fillStyle = grd;
+    g.beginPath(); g.ellipse(W/2,H/2,26,44,0,0,TAU); g.fill();
+    g.strokeStyle = "rgba(255,255,255,.8)"; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(W/2,H/2,24,42,0,0,TAU); g.stroke();
+    for(let i=0;i<7;i++){
+      g.strokeStyle = `hsla(${i*40+140},100%,70%,.4)`;
+      g.beginPath(); g.ellipse(W/2,H/2, 5+i*3, 8+i*5.4, 0,0,TAU); g.stroke();
+    }
+    SPR.portal = c;
+  }
+
+  // --- Boule disco ---
+  {
+    const S = 160, c = newCanvas(S,S), g = c.getContext("2d");
+    const R = 66, cx = S/2, cy = S/2;
+    const hal = g.createRadialGradient(cx,cy,R*.6,cx,cy,S/2);
+    hal.addColorStop(0,"rgba(255,255,255,.5)"); hal.addColorStop(1,"rgba(255,255,255,0)");
+    g.fillStyle = hal; g.fillRect(0,0,S,S);
+    g.save();
+    g.beginPath(); g.arc(cx,cy,R,0,TAU); g.clip();
+    g.fillStyle = "#25304a"; g.fillRect(0,0,S,S);
+    const rng = makeRng(5150);
+    // facettes
+    for(let y=-R; y<R; y+=9){
+      for(let x=-R; x<R; x+=9){
+        const t = rng();
+        const l = 40 + t*55;
+        const h = [190, 300, 265, 45][(Math.abs(x+y)/9|0) % 4];
+        g.fillStyle = `hsl(${h},${30+t*60}%,${l}%)`;
+        g.fillRect(cx+x+1, cy+y+1, 7, 7);
+      }
+    }
+    // ombrage sphérique
+    const sh = g.createRadialGradient(cx-R*.35, cy-R*.4, R*.1, cx, cy, R);
+    sh.addColorStop(0,"rgba(255,255,255,.55)");
+    sh.addColorStop(.55,"rgba(255,255,255,0)");
+    sh.addColorStop(1,"rgba(0,0,10,.65)");
+    g.fillStyle = sh; g.fillRect(0,0,S,S);
+    g.restore();
+    // attache
+    g.strokeStyle = "#8891a8"; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(cx, cy-R); g.lineTo(cx, 2); g.stroke();
+    SPR.disco = c;
+  }
+}
+
+/* ================================================================
+   3. GÉNÉRATION DES NIVEAUX
+   ================================================================ */
+
+/** Palettes / ambiance par niveau */
+const LEVEL_STYLE = [
+  { // 0 - Donjon électro-techno
+    name:"Donjon Électro-Techno",
+    ceilTop:"#150033", ceilBot:"#2a0a5e",
+    floorTop:"#1a0a2e", floorBot:"#05010f",
+    fog:[5,1,20], fogDist:9.5,
+    gridColor:"rgba(0,240,255,.10)"
+  },
+  { // 1 - Backrooms
+    name:"The Backrooms",
+    ceilTop:"#efe9a8", ceilBot:"#cfc07a",
+    floorTop:"#7d6f38", floorBot:"#4a4120",
+    fog:[190,175,110], fogDist:13,
+    gridColor:"rgba(80,70,25,.15)"
+  },
+  { // 2 - Salle disco
+    name:"Salle Disco Cosmique",
+    ceilTop:"#1b0038", ceilBot:"#48006e",
+    floorTop:"#2a0040", floorBot:"#0a0016",
+    fog:[20,0,40], fogDist:16,
+    gridColor:"rgba(255,43,214,.14)"
+  }
+];
+
+/** Labyrinthe par backtracking récursif (grilles impaires). */
+function generateMaze(w, h, rng){
+  const g = new Uint8Array(w*h).fill(1);
+  const I = (x,y) => y*w + x;
+  const stack = [[1,1]];
+  g[I(1,1)] = 0;
+  while(stack.length){
+    const [x,y] = stack[stack.length-1];
+    const dirs = [[2,0],[-2,0],[0,2],[0,-2]];
+    // mélange
+    for(let i=dirs.length-1;i>0;i--){ const j = (rng()*(i+1))|0; const t=dirs[i]; dirs[i]=dirs[j]; dirs[j]=t; }
+    let moved = false;
+    for(const [dx,dy] of dirs){
+      const nx = x+dx, ny = y+dy;
+      if(nx>0 && ny>0 && nx<w-1 && ny<h-1 && g[I(nx,ny)]===1){
+        g[I(x+dx/2, y+dy/2)] = 0;
+        g[I(nx,ny)] = 0;
+        stack.push([nx,ny]);
+        moved = true; break;
+      }
+    }
+    if(!moved) stack.pop();
+  }
+  return g;
+}
+
+/** Ouvre quelques boucles pour éviter le labyrinthe « parfait » (trop labyrinthique). */
+function carveLoops(g, w, h, rng, prob){
+  const I = (x,y)=>y*w+x;
+  for(let y=2;y<h-2;y++) for(let x=2;x<w-2;x++){
+    if(g[I(x,y)] === 1 && rng() < prob) g[I(x,y)] = 0;
+  }
+}
+
+/** Creuse quelques salles rectangulaires. */
+function carveRooms(g, w, h, rng, count){
+  const I = (x,y)=>y*w+x;
+  for(let i=0;i<count;i++){
+    const rw = 3 + ((rng()*3)|0)*2;
+    const rh = 3 + ((rng()*3)|0)*2;
+    const rx = 1 + ((rng()*(w-rw-2))|0);
+    const ry = 1 + ((rng()*(h-rh-2))|0);
+    for(let y=ry;y<ry+rh;y++) for(let x=rx;x<rx+rw;x++){
+      if(x>0&&y>0&&x<w-1&&y<h-1) g[I(x,y)] = 0;
+    }
+  }
+}
+
+/** Liste les cases libres. */
+function openCells(gr, w, h){
+  const out = [];
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++) if(gr[y*w+x]===0) out.push([x,y]);
+  return out;
+}
+
+/** BFS depuis une case : renvoie une carte de distances (en cases). */
+function bfsDistances(gr, w, h, sx, sy){
+  const dist = new Int32Array(w*h).fill(-1);
+  const q = [sx + sy*w];
+  dist[sx + sy*w] = 0;
+  let head = 0;
+  while(head < q.length){
+    const c = q[head++];
+    const x = c % w, y = (c/w)|0;
+    const d = dist[c];
+    const nb = [[1,0],[-1,0],[0,1],[0,-1]];
+    for(const [dx,dy] of nb){
+      const nx = x+dx, ny = y+dy;
+      if(nx<0||ny<0||nx>=w||ny>=h) continue;
+      const n = nx + ny*w;
+      if(gr[n]!==0 || dist[n]!==-1) continue;
+      dist[n] = d+1;
+      q.push(n);
+    }
+  }
+  return dist;
+}
+
+/** Choisit N positions bien réparties parmi des candidats. */
+function pickSpread(cands, n, minDist, rng){
+  const chosen = [];
+  const pool = cands.slice();
+  for(let i=pool.length-1;i>0;i--){ const j=(rng()*(i+1))|0; const t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
+  for(const c of pool){
+    if(chosen.length >= n) break;
+    let ok = true;
+    for(const o of chosen){
+      const dx = o[0]-c[0], dy = o[1]-c[1];
+      if(Math.hypot(dx,dy) < minDist){ ok = false; break; }
+    }
+    if(ok) chosen.push(c);
+  }
+  // Si trop peu, on complète sans contrainte
+  let i = 0;
+  while(chosen.length < n && i < pool.length) {
+    const c = pool[i++];
+    if(!chosen.includes(c)) chosen.push(c);
+  }
+  return chosen;
+}
+
+/**
+ * Construit un niveau complet.
+ * @param {number} index 0 = donjon, 1 = backrooms, 2 = salle disco
+ */
+function buildLevel(index, seed){
+  const rng = makeRng(seed + index*7919);
+  const style = LEVEL_STYLE[index];
+  let w, h, grid;
+
+  if(index === 0){
+    /* ---- DONJON : labyrinthe classique 1 case de large ---- */
+    w = 25; h = 25;
+    const maze = generateMaze(w, h, rng);
+    carveLoops(maze, w, h, rng, 0.10);
+    carveRooms(maze, w, h, rng, 4);
+    grid = new Uint8Array(w*h);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      if(maze[y*w+x] === 1){
+        // texture selon la « région » : donne des zones colorées différentes
+        const region = (((x/6)|0) + ((y/6)|0)) % 3;
+        grid[y*w+x] = 1 + region;         // 1,2,3
+      } else grid[y*w+x] = 0;
+    }
+  } else if(index === 1){
+    /* ---- BACKROOMS : labyrinthe à couloirs larges (2 cases) ---- */
+    const mw = 13, mh = 13;
+    const maze = generateMaze(mw, mh, rng);
+    carveLoops(maze, mw, mh, rng, 0.22);
+    w = mw*2; h = mh*2;
+    grid = new Uint8Array(w*h);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      const v = maze[((y/2)|0)*mw + ((x/2)|0)];
+      grid[y*w+x] = v ? (rng()<0.16 ? 7 : 5) : 0;
+    }
+    // bordure pleine
+    for(let x=0;x<w;x++){ grid[x] = 5; grid[(h-1)*w+x] = 5; }
+    for(let y=0;y<h;y++){ grid[y*w] = 5; grid[y*w+w-1] = 5; }
+    // quelques piliers isolés pour l'effet « colonnes infinies »
+    for(let y=3;y<h-3;y+=4) for(let x=3;x<w-3;x+=4){
+      if(grid[y*w+x]===0 && rng()<0.5) grid[y*w+x] = 5;
+    }
+  } else {
+    /* ---- SALLE DISCO : pièce fabriquée à la main ---- */
+    w = 17; h = 17;
+    grid = new Uint8Array(w*h);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      const border = (x===0||y===0||x===w-1||y===h-1);
+      grid[y*w+x] = border ? 6 : 0;
+    }
+    // 4 colonnes miroir
+    const pil = [[4,4],[12,4],[4,12],[12,12]];
+    for(const [px,py] of pil) grid[py*w+px] = 6;
+    // petit couloir d'entrée en bas
+    for(let x=7;x<=9;x++){ grid[(h-1)*w + x] = (x===8) ? 0 : 6; }
+    grid[(h-1)*w + 8] = 4;  // porte visuelle derrière le joueur
+  }
+
+  /* ---- Placement du joueur ---- */
+  const cells = openCells(grid, w, h);
+  let start;
+  if(index === 2) start = [8, h-3];
+  else start = cells[0] || [1,1];
+
+  const dist = bfsDistances(grid, w, h, start[0], start[1]);
+  const reachable = cells.filter(c => dist[c[1]*w + c[0]] > 0);
+
+  const lvl = {
+    index, w, h, grid, style,
+    start: { x:start[0]+0.5, y:start[1]+0.5, angle: index===2 ? -Math.PI/2 : 0 },
+    reachable, dist,
+    portal: null,
+    ballPos: index===2 ? { x:8.5, y:6.5 } : null
+  };
+  return lvl;
+}
+
+/** Test de mur (avec marge hors-carte = mur). */
+function isWall(lvl, x, y){
+  const ix = x|0, iy = y|0;
+  if(ix < 0 || iy < 0 || ix >= lvl.w || iy >= lvl.h) return true;
+  return lvl.grid[iy*lvl.w + ix] !== 0;
+}
+
+/* ================================================================
+   4. AUDIO — synthèse Web Audio API
+   ================================================================ */
+const Audio2 = (function(){
+  let actx = null, master = null, musGain = null, sfxGain = null;
+  let schedTimer = null, step = 0, nextTime = 0, mode = 0, running = false;
+  const BPM = 126, STEP = 60/BPM/4;   // double-croche
+
+  function init(){
+    if(actx) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return false;
+    actx = new AC();
+    master = actx.createGain(); master.gain.value = 1; master.connect(actx.destination);
+    musGain = actx.createGain(); musGain.gain.value = settings.music; musGain.connect(master);
+    sfxGain = actx.createGain(); sfxGain.gain.value = settings.sfx; sfxGain.connect(master);
+    return true;
+  }
+  function resume(){ if(actx && actx.state === "suspended") actx.resume(); }
+  function setMusic(v){ if(musGain) musGain.gain.value = v; }
+  function setSfx(v){ if(sfxGain) sfxGain.gain.value = v; }
+
+  /* ---- SFX ---- */
+  function env(node, t, a, d, peak){
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(peak,0.0002), t+a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+a+d);
+    node.connect(g);
+    return g;
+  }
+  function noiseBuffer(dur){
+    const n = actx.sampleRate * dur | 0;
+    const buf = actx.createBuffer(1, n, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i] = Math.random()*2-1;
+    return buf;
+  }
+
+  function shoot(){
+    if(!actx) return;
+    const t = actx.currentTime;
+    const o = actx.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(880, t);
+    o.frequency.exponentialRampToValueAtTime(120, t+0.18);
+    const f = actx.createBiquadFilter(); f.type="lowpass";
+    f.frequency.setValueAtTime(4000,t); f.frequency.exponentialRampToValueAtTime(400,t+0.18);
+    o.connect(f);
+    const g = env(f, t, 0.005, 0.19, 0.35); g.connect(sfxGain);
+    o.start(t); o.stop(t+0.25);
+  }
+  function pickup(){
+    if(!actx) return;
+    const t = actx.currentTime;
+    [523.25, 659.25, 783.99, 1046.5].forEach((f,i)=>{
+      const o = actx.createOscillator(); o.type = "square";
+      o.frequency.value = f;
+      const g = env(o, t+i*0.06, 0.005, 0.18, 0.22); g.connect(sfxGain);
+      o.start(t+i*0.06); o.stop(t+i*0.06+0.24);
+    });
+  }
+  function ghostDeath(){
+    if(!actx) return;
+    const t = actx.currentTime;
+    const src = actx.createBufferSource(); src.buffer = noiseBuffer(0.7);
+    const f = actx.createBiquadFilter(); f.type = "bandpass";
+    f.frequency.setValueAtTime(2400,t); f.frequency.exponentialRampToValueAtTime(120,t+0.65);
+    f.Q.value = 4;
+    src.connect(f);
+    const g = env(f, t, 0.01, 0.7, 0.5); g.connect(sfxGain);
+    src.start(t); src.stop(t+0.75);
+    const o = actx.createOscillator(); o.type="sine";
+    o.frequency.setValueAtTime(420,t); o.frequency.exponentialRampToValueAtTime(60,t+0.6);
+    const g2 = env(o,t,0.01,0.6,0.25); g2.connect(sfxGain);
+    o.start(t); o.stop(t+0.7);
+  }
+  function hit(){
+    if(!actx) return;
+    const t = actx.currentTime;
+    const o = actx.createOscillator(); o.type="square";
+    o.frequency.setValueAtTime(180,t); o.frequency.exponentialRampToValueAtTime(70,t+0.35);
+    const g = env(o,t,0.005,0.4,0.4); g.connect(sfxGain);
+    o.start(t); o.stop(t+0.5);
+  }
+  function step_(){
+    if(!actx) return;
+    const t = actx.currentTime;
+    const src = actx.createBufferSource(); src.buffer = noiseBuffer(0.06);
+    const f = actx.createBiquadFilter(); f.type="lowpass"; f.frequency.value = 700;
+    src.connect(f);
+    const g = env(f,t,0.004,0.06,0.10); g.connect(sfxGain);
+    src.start(t); src.stop(t+0.09);
+  }
+  function victory(){
+    if(!actx) return;
+    const t = actx.currentTime;
+    const notes = [261.6,329.6,392,523.3,659.3,784,1046.5];
+    notes.forEach((f,i)=>{
+      const o = actx.createOscillator(); o.type = "sawtooth"; o.frequency.value = f;
+      const fl = actx.createBiquadFilter(); fl.type="lowpass"; fl.frequency.value=2600;
+      o.connect(fl);
+      const g = env(fl, t+i*0.1, 0.01, 0.7, 0.16); g.connect(sfxGain);
+      o.start(t+i*0.1); o.stop(t+i*0.1+0.9);
+    });
+  }
+  function portalSfx(){
+    if(!actx) return;
+    const t = actx.currentTime;
+    const o = actx.createOscillator(); o.type="triangle";
+    o.frequency.setValueAtTime(90,t); o.frequency.exponentialRampToValueAtTime(1400,t+0.9);
+    const g = env(o,t,0.05,0.9,0.3); g.connect(sfxGain);
+    o.start(t); o.stop(t+1.0);
+  }
+
+  /* ---- BGM : séquenceur à lookahead ---- */
+  // Motifs par mode : 0 = techno donjon, 1 = drone backrooms, 2 = disco
+  const BASS = [0,0,7,0, 0,0,10,0, 0,0,7,0, 5,0,3,0];
+  const ROOT = 55; // La1
+
+  function midi(n){ return 440 * Math.pow(2, (n-69)/12); }
+
+  function kick(t){
+    const o = actx.createOscillator(); o.type="sine";
+    o.frequency.setValueAtTime(140,t); o.frequency.exponentialRampToValueAtTime(45,t+0.11);
+    const g = env(o,t,0.003,0.22,0.9); g.connect(musGain);
+    o.start(t); o.stop(t+0.3);
+  }
+  function hat(t, open){
+    const src = actx.createBufferSource(); src.buffer = noiseBuffer(open?0.14:0.045);
+    const f = actx.createBiquadFilter(); f.type="highpass"; f.frequency.value = 7000;
+    src.connect(f);
+    const g = env(f,t,0.002, open?0.14:0.045, open?0.12:0.08); g.connect(musGain);
+    src.start(t); src.stop(t+0.2);
+  }
+  function bassNote(t, semi){
+    const o = actx.createOscillator(); o.type="sawtooth";
+    o.frequency.value = midi(33 + semi);
+    const f = actx.createBiquadFilter(); f.type="lowpass";
+    f.frequency.setValueAtTime(1200,t); f.frequency.exponentialRampToValueAtTime(220,t+0.2);
+    f.Q.value = 8;
+    o.connect(f);
+    const g = env(f,t,0.008,0.19,0.30); g.connect(musGain);
+    o.start(t); o.stop(t+0.28);
+  }
+  function pad(t, dur){
+    const freqs = [ROOT, ROOT*1.5, ROOT*2.38];
+    freqs.forEach((fr,i)=>{
+      const o = actx.createOscillator(); o.type = i===2 ? "triangle":"sawtooth";
+      o.frequency.value = fr * (1 + (i-1)*0.004);
+      const f = actx.createBiquadFilter(); f.type="lowpass"; f.frequency.value = 700;
+      o.connect(f);
+      const g = env(f, t, 0.6, dur, 0.06); g.connect(musGain);
+      o.start(t); o.stop(t+dur+0.7);
+    });
+  }
+  function drone(t, dur){
+    const o = actx.createOscillator(); o.type="sawtooth"; o.frequency.value = 58;
+    const o2 = actx.createOscillator(); o2.type="sine"; o2.frequency.value = 116.6;
+    const f = actx.createBiquadFilter(); f.type="lowpass"; f.frequency.value = 320;
+    o.connect(f); o2.connect(f);
+    const g = env(f, t, 1.2, dur, 0.10); g.connect(musGain);
+    o.start(t); o.stop(t+dur+1.3); o2.start(t); o2.stop(t+dur+1.3);
+    // grésillement de néon
+    const src = actx.createBufferSource(); src.buffer = noiseBuffer(0.5);
+    const bf = actx.createBiquadFilter(); bf.type="bandpass"; bf.frequency.value = 5200; bf.Q.value=12;
+    src.connect(bf);
+    const g2 = env(bf, t+Math.random()*1.5, 0.02, 0.35, 0.05); g2.connect(musGain);
+    src.start(t); src.stop(t+2);
+  }
+  function discoStab(t, semi){
+    [0,4,7,11].forEach(iv=>{
+      const o = actx.createOscillator(); o.type="square";
+      o.frequency.value = midi(57 + semi + iv);
+      const g = env(o, t, 0.006, 0.16, 0.07); g.connect(musGain);
+      o.start(t); o.stop(t+0.22);
+    });
+  }
+
+  function scheduler(){
+    if(!actx || !running) return;
+    while(nextTime < actx.currentTime + 0.15){
+      const t = nextTime, s = step % 16;
+      if(mode === 0){                       // donjon techno
+        if(s % 4 === 0) kick(t);
+        if(s % 2 === 1) hat(t, s % 8 === 7);
+        if(BASS[s] !== 0 || s % 4 === 2) bassNote(t, BASS[s]);
+        if(s === 0 && (step % 64) === 0) pad(t, 3.4);
+      } else if(mode === 1){                // backrooms : bourdonnement
+        if(s === 0 && (step % 32) === 0) drone(t, 3.6);
+        if(s === 8 && (step % 64) === 8) hat(t, false);
+      } else {                              // disco
+        if(s % 4 === 0) kick(t);
+        if(s % 2 === 1) hat(t, s%4===3);
+        if(s % 2 === 0) bassNote(t, [0,0,5,5,7,7,3,3][(s/2)|0]);
+        if(s === 4 || s === 12) discoStab(t, [0,5,7,3][(step/16|0)%4]);
+      }
+      nextTime += STEP;
+      step++;
+    }
+  }
+
+  function startMusic(m){
+    if(!init()) return;
+    resume();
+    mode = m;
+    if(running){ return; }
+    running = true; step = 0; nextTime = actx.currentTime + 0.08;
+    schedTimer = setInterval(scheduler, 25);
+  }
+  function setMode(m){ if(m !== mode){ mode = m; step = 0; } }
+  function stopMusic(){
+    running = false;
+    if(schedTimer){ clearInterval(schedTimer); schedTimer = null; }
+  }
+
+  return { init, resume, startMusic, stopMusic, setMode, setMusic, setSfx,
+           shoot, pickup, ghostDeath, hit, step:step_, victory, portal:portalSfx,
+           get ok(){ return !!actx; } };
+})();
+
+/* ================================================================
+   5. ENTRÉES : clavier / tactile / gyroscope
+   ================================================================ */
+const input = {
+  fwd:0, back:0, left:0, right:0, fire:false,   // état agrégé
+  keyFwd:0, keyBack:0, keyLeft:0, keyRight:0,
+  touchFwd:0, touchBack:0, touchLeft:0, touchRight:0,
+  gyroFwd:0, gyroTurn:0,
+  touchActive:false
+};
+
+const gyro = {
+  supported: ("DeviceOrientationEvent" in window),
+  granted: false,
+  active: false,
+  beta:0, gamma:0,
+  baseBeta:null, baseGamma:null,
+  lastEvent:0
+};
+
+/* ---------------- Clavier ---------------- */
+function handleKeyboardInput(e, down){
+  const k = e.key.toLowerCase();
+  let used = true;
+  switch(k){
+    case "z": case "w": case "arrowup":    input.keyFwd = down?1:0; break;
+    case "s": case "arrowdown":            input.keyBack = down?1:0; break;
+    case "q": case "a": case "arrowleft":  input.keyLeft = down?1:0; break;
+    case "d": case "arrowright":           input.keyRight = down?1:0; break;
+    case " ": case "enter":
+      if(down && state === STATE.PLAY) tryShoot();
+      break;
+    case "escape":
+      if(down){
+        if(state === STATE.PLAY) pauseGame();
+        else if(state === STATE.PAUSE) resumeGame();
+      }
+      break;
+    case "m": if(down) toggleMinimap(); break;
+    default: used = false;
+  }
+  if(used) e.preventDefault();
+}
+window.addEventListener("keydown", e => handleKeyboardInput(e, true), {passive:false});
+window.addEventListener("keyup",   e => handleKeyboardInput(e, false), {passive:false});
+window.addEventListener("blur", () => {
+  input.keyFwd = input.keyBack = input.keyLeft = input.keyRight = 0;
+});
+
+/* ---------------- Tactile ---------------- */
+function bindPad(el, act){
+  const set = (v) => {
+    input.touchActive = true;
+    if(act === "fwd") input.touchFwd = v;
+    else if(act === "back") input.touchBack = v;
+    else if(act === "left") input.touchLeft = v;
+    else if(act === "right") input.touchRight = v;
+    el.classList.toggle("on", !!v);
+  };
+  el.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch(_){}
+    set(1);
+  });
+  const up = e => { e.preventDefault(); set(0); };
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointercancel", up);
+  el.addEventListener("pointerleave", up);
+  el.addEventListener("contextmenu", e => e.preventDefault());
+}
+
+function handleTouchInput(){
+  document.querySelectorAll("#dpad .pad").forEach(el => bindPad(el, el.dataset.act));
+
+  const fire = $("fireBtn");
+  const setFire = (v) => { input.fire = v; fire.classList.toggle("on", v); };
+  fire.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    try { fire.setPointerCapture(e.pointerId); } catch(_){}
+    input.touchActive = true;
+    setFire(true);
+    if(state === STATE.PLAY) tryShoot();
+  });
+  const fUp = e => { e.preventDefault(); setFire(false); };
+  fire.addEventListener("pointerup", fUp);
+  fire.addEventListener("pointercancel", fUp);
+  fire.addEventListener("contextmenu", e => e.preventDefault());
+
+  $("pauseBtn").addEventListener("click", e => {
+    e.preventDefault();
+    if(state === STATE.PLAY) pauseGame();
+  });
+
+  // Un tap n'importe où sur la vue = tir (zone centrale/haute), pratique en mobile
+  canvas.addEventListener("pointerdown", e => {
+    if(state !== STATE.PLAY) return;
+    const r = canvas.getBoundingClientRect();
+    const ly = (e.clientY - r.top) / r.height;
+    if(ly < 0.62){ input.touchActive = true; tryShoot(); }
+  });
+}
+
+/* ---------------- Gyroscope ---------------- */
+function onOrientation(e){
+  if(e.beta === null && e.gamma === null) return;
+  gyro.active = true;
+  gyro.lastEvent = performance.now();
+  gyro.beta = e.beta || 0;     // avant/arrière
+  gyro.gamma = e.gamma || 0;   // gauche/droite
+  if(gyro.baseBeta === null){ gyro.baseBeta = gyro.beta; gyro.baseGamma = gyro.gamma; }
+  updateGyroState();
+}
+
+/** Demande l'accès au capteur (obligatoire sur iOS 13+). */
+async function requestGyroscopePermission(){
+  const err = $("gyroErr");
+  err.textContent = "";
+  if(!("DeviceOrientationEvent" in window)){
+    gyro.supported = false;
+    err.textContent = "Gyroscope non supporté — utilisez les flèches tactiles ou le clavier.";
+    updateGyroState();
+    return false;
+  }
+  try{
+    if(typeof DeviceOrientationEvent.requestPermission === "function"){
+      const res = await DeviceOrientationEvent.requestPermission();
+      if(res !== "granted"){
+        err.textContent = "Permission refusée — joystick tactile activé à la place.";
+        updateGyroState();
+        return false;
+      }
+    }
+    gyro.granted = true;
+    window.addEventListener("deviceorientation", onOrientation, true);
+    // Si aucun évènement en 1,2 s → pas de capteur réel
+    setTimeout(() => {
+      if(!gyro.active){
+        err.textContent = "Aucun capteur détecté — utilisez les flèches tactiles.";
+        updateGyroState();
+      }
+    }, 1200);
+    updateGyroState();
+    return true;
+  } catch(ex){
+    err.textContent = "Gyroscope indisponible (" + ex.name + ") — flèches tactiles activées.";
+    updateGyroState();
+    return false;
+  }
+}
+
+/** Réinitialise la position neutre de l'appareil. */
+function calibrateGyro(){
+  gyro.baseBeta = gyro.beta;
+  gyro.baseGamma = gyro.gamma;
+  showToast("Gyroscope recalibré !");
+}
+
+/** Convertit l'orientation en commandes de déplacement. */
+function handleGyroscope(){
+  input.gyroFwd = 0; input.gyroTurn = 0;
+  if(!settings.gyroEnabled || !gyro.active) return;
+  if(performance.now() - gyro.lastEvent > 2000){ gyro.active = false; return; }
+
+  const dz = settings.deadzone;
+  let db = (gyro.beta  - (gyro.baseBeta  ?? 0));
+  let dg = (gyro.gamma - (gyro.baseGamma ?? 0));
+
+  // Avancer / reculer : inclinaison avant (beta croissant) = avancer
+  let f = 0;
+  if(db > dz) f = (db - dz) / 25;
+  else if(db < -dz) f = (db + dz) / 25;
+  input.gyroFwd = clamp(f * settings.sensitivity, -1, 1);
+
+  // Rotation : inclinaison latérale
+  let t = 0;
+  if(dg > dz) t = (dg - dz) / 30;
+  else if(dg < -dz) t = (dg + dz) / 30;
+  input.gyroTurn = clamp(t * settings.sensitivity, -1, 1);
+}
+
+/** Fusionne toutes les sources d'entrée. */
+function gatherInput(){
+  handleGyroscope();
+  // Les touches tactiles ont priorité sur le gyroscope
+  const tFwd = input.touchFwd - input.touchBack;
+  const kFwd = input.keyFwd - input.keyBack;
+  let fwd = kFwd || tFwd;
+  if(!fwd) fwd = input.gyroFwd;
+
+  const tTurn = input.touchRight - input.touchLeft;
+  const kTurn = input.keyRight - input.keyLeft;
+  let turn = kTurn || tTurn;
+  if(!turn) turn = input.gyroTurn;
+
+  return { fwd: clamp(fwd,-1,1), turn: clamp(turn,-1,1) };
+}
+
+function updateGyroState(){
+  const isTouch = matchMedia("(pointer:coarse)").matches;
+  const msg = !gyro.supported
+      ? "🚫 Gyroscope non supporté sur cet appareil — flèches tactiles et clavier disponibles."
+      : gyro.active
+        ? "✅ Gyroscope actif — penchez l'appareil vers l'avant pour avancer."
+        : !isTouch
+          ? "🖥️ Mode ordinateur détecté — jouez au clavier (le gyroscope reste dispo sur mobile)."
+          : gyro.granted
+            ? "⏳ Gyroscope autorisé, en attente de mouvement…"
+            : "🧭 Touchez « Activer le gyroscope » (requis sur iOS 13+).";
+  const base = 'Optimisé mobile — <b>Penchez pour avancer/reculer</b>, touchez pour tirer.<br>Sur ordinateur : <b>Z/W S Q/A D</b> + <b>Espace</b>.<br>';
+  $("gyroState").innerHTML = base + msg;
+  const g2 = $("gyroState2");
+  if(g2) g2.innerHTML = msg;
+}
+
+/* ================================================================
+   6. LOGIQUE DE JEU
+   ================================================================ */
+
+/** Crée un sprite générique. */
+function makeSprite(type, x, y, extra){
+  return Object.assign({
+    type, x, y, alive:true, scale:1, vOffset:0, alpha:1, dist:0, t:Math.random()*TAU
+  }, extra||{});
+}
+
+/** Place les fantômes dans le niveau. */
+function spawnEnemies(lvl, count, rng){
+  const far = lvl.reachable.filter(c => lvl.dist[c[1]*lvl.w+c[0]] > 6);
+  const spots = pickSpread(far.length ? far : lvl.reachable, count, 4, rng);
+  for(const [cx,cy] of spots){
+    sprites.push(makeSprite("ghost", cx+0.5, cy+0.5, {
+      hp:3, scale:0.95, alpha:0.62, speed:0.95, hitFlash:0, stun:0
+    }));
+  }
+}
+
+/** Place les vinyls. */
+function spawnVinyls(lvl, count, rng){
+  const far = lvl.reachable.filter(c => lvl.dist[c[1]*lvl.w+c[0]] > 8);
+  const spots = pickSpread(far.length >= count ? far : lvl.reachable, count, 5, rng);
+  for(const [cx,cy] of spots){
+    sprites.push(makeSprite("vinyl", cx+0.5, cy+0.5, { scale:0.42, vOffset:0.10 }));
+  }
+}
+
+/** Charge un niveau et son contenu. */
+function loadLevel(index){
+  game.levelIndex = index;
+  level = buildLevel(index, game.seed);
+  sprites = [];
+  particles = [];
+  const rng = makeRng(game.seed + index*104729 + 17);
+
+  player.x = level.start.x;
+  player.y = level.start.y;
+  setAngle(level.start.angle);
+  player.invuln = 1.2;
+
+  if(index === 0){
+    spawnVinyls(level, 3, rng);
+    spawnEnemies(level, 5, rng);
+  } else if(index === 1){
+    spawnVinyls(level, 2, rng);
+    // Pas de fantômes dans les Backrooms — juste l'oppression.
+  } else {
+    sprites.push(makeSprite("disco", level.ballPos.x, level.ballPos.y, {
+      scale:2.0, vOffset:-0.22
+    }));
+  }
+
+  $("levelName").textContent = level.style.name;
+  Audio2.setMode(index);
+  updateHud();
+}
+
+/** Oriente le joueur. */
+function setAngle(a){
+  player.angle = a;
+  player.dirX = Math.cos(a); player.dirY = Math.sin(a);
+  // plan caméra perpendiculaire, FOV ~66°
+  player.planeX = -player.dirY * 0.66;
+  player.planeY =  player.dirX * 0.66;
+}
+
+/** Tir d'un projectile néon. */
+function shoot(){
+  const sp = makeSprite("bolt", player.x + player.dirX*0.35, player.y + player.dirY*0.35, {
+    vx: player.dirX*9.0, vy: player.dirY*9.0,
+    life: 1.6, scale:0.24, vOffset:0.02
+  });
+  sprites.push(sp);
+  game.shots++;
+  game.cooldown = game.fireRate;
+  Audio2.shoot();
+  muzzleFlash = 1;
+}
+function tryShoot(){
+  if(game.cooldown > 0) return;
+  shoot();
+}
+
+let muzzleFlash = 0;
+
+/** Déplacement avec glissement le long des murs. */
+function moveWithCollision(nx, ny){
+  const R = 0.22;
+  // Axe X
+  if(!isWall(level, nx + Math.sign(nx-player.x)*R, player.y)) player.x = nx;
+  // Axe Y
+  if(!isWall(level, player.x, ny + Math.sign(ny-player.y)*R)) player.y = ny;
+}
+
+/** Ajoute des particules (dispersion). */
+function burst(x, y, color, n, spread, ttl){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*TAU, s = Math.random()*spread;
+    particles.push({
+      x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s,
+      vz:(Math.random()-0.5)*0.6, z:0.1+Math.random()*0.3,
+      life:ttl, max:ttl, color
+    });
+  }
+}
+
+/** Boucle logique. */
+function update(dt){
+  game.time += dt;
+
+  /* ----- Entrées ----- */
+  const cmd = gatherInput();
+  const TURN = 2.6;         // rad/s
+  const SPEED = 2.7;        // unités/s
+
+  if(cmd.turn) setAngle(player.angle + cmd.turn * TURN * dt);
+
+  if(cmd.fwd){
+    const v = cmd.fwd * SPEED * dt;
+    moveWithCollision(player.x + player.dirX*v, player.y + player.dirY*v);
+    // bruit de pas + balancement de caméra
+    player.bob += Math.abs(v) * 9;
+    player.stepAcc += Math.abs(v);
+    if(player.stepAcc > 0.85){ player.stepAcc = 0; Audio2.step(); }
+  } else {
+    player.bob *= Math.pow(0.02, dt);
+  }
+
+  // Tir maintenu (bouton tactile ou touche)
+  game.cooldown = Math.max(0, game.cooldown - dt);
+  if(input.fire && game.cooldown === 0 && state === STATE.PLAY) shoot();
+
+  if(player.invuln > 0) player.invuln -= dt;
+  if(player.hurtFx > 0) player.hurtFx = Math.max(0, player.hurtFx - dt*1.7);
+  if(muzzleFlash > 0) muzzleFlash = Math.max(0, muzzleFlash - dt*6);
+
+  /* ----- Entités ----- */
+  for(let i=sprites.length-1; i>=0; i--){
+    const s = sprites[i];
+    if(!s.alive){ sprites.splice(i,1); continue; }
+    s.t += dt;
+
+    if(s.type === "vinyl"){
+      s.vOffset = 0.10 + Math.sin(s.t*2.4)*0.05;
+      const d = Math.hypot(s.x-player.x, s.y-player.y);
+      if(d < 0.55) collectVinyl(s);
+    }
+
+    else if(s.type === "ghost"){
+      s.vOffset = -0.05 + Math.sin(s.t*1.7)*0.06;
+      s.alpha = 0.52 + Math.sin(s.t*2.2)*0.10;
+      if(s.hitFlash > 0) s.hitFlash -= dt;
+      if(s.stun > 0){ s.stun -= dt; }
+      else {
+        // Poursuite simple avec glissement le long des murs
+        const dx = player.x - s.x, dy = player.y - s.y;
+        const d = Math.hypot(dx,dy) || 1;
+        if(d < 14){
+          const vx = dx/d * s.speed * dt, vy = dy/d * s.speed * dt;
+          if(!isWall(level, s.x + vx*3, s.y)) s.x += vx;
+          else if(!isWall(level, s.x, s.y + Math.sign(dy)*0.3)) s.y += Math.sign(dy)*s.speed*dt*0.7;
+          if(!isWall(level, s.x, s.y + vy*3)) s.y += vy;
+          else if(!isWall(level, s.x + Math.sign(dx)*0.3, s.y)) s.x += Math.sign(dx)*s.speed*dt*0.7;
+        }
+        // Contact avec le joueur
+        if(d < 0.5 && player.invuln <= 0) damagePlayer(s);
+      }
+    }
+
+    else if(s.type === "bolt"){
+      const steps = 3;                      // sous-échantillonnage anti-tunnel
+      for(let k=0;k<steps && s.alive;k++){
+        s.x += s.vx*dt/steps; s.y += s.vy*dt/steps;
+        if(isWall(level, s.x, s.y)){
+          burst(s.x - s.vx*0.02, s.y - s.vy*0.02, "0,240,255", 8, 1.2, 0.35);
+          s.alive = false; break;
+        }
+        for(const g of sprites){
+          if(g.type !== "ghost" || !g.alive) continue;
+          if(Math.hypot(g.x-s.x, g.y-s.y) < 0.42){
+            hitGhost(g);
+            s.alive = false; break;
+          }
+        }
+      }
+      s.life -= dt;
+      if(s.life <= 0) s.alive = false;
+    }
+
+    else if(s.type === "portal"){
+      s.vOffset = Math.sin(s.t*1.5)*0.04;
+      s.scale = 1.15 + Math.sin(s.t*3)*0.05;
+      if(Math.hypot(s.x-player.x, s.y-player.y) < 0.7) enterPortal();
+    }
+
+    else if(s.type === "disco"){
+      s.vOffset = -0.22 + Math.sin(s.t*0.8)*0.03;
+      if(Math.hypot(s.x-player.x, s.y-player.y) < 1.6) triggerWin();
+    }
+  }
+
+  /* ----- Particules ----- */
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.x += p.vx*dt; p.y += p.vy*dt; p.z += p.vz*dt;
+    p.vx *= Math.pow(0.15, dt); p.vy *= Math.pow(0.15, dt);
+    p.vz -= dt*0.4;
+    p.life -= dt;
+    if(p.life <= 0) particles.splice(i,1);
+  }
+}
+
+/** Ramassage d'un vinyl. */
+function collectVinyl(s){
+  s.alive = false;
+  game.vinyls++;
+  Audio2.pickup();
+  burst(s.x, s.y, "255,210,74", 16, 1.8, 0.6);
+  showToast(`Vinyl collecté ! ${game.vinyls}/${game.totalVinyls}`);
+  updateHud();
+  checkVictory();
+}
+
+/** Dégâts au joueur. */
+function damagePlayer(ghost){
+  player.lives--;
+  player.invuln = 1.8;
+  player.hurtFx = 1;
+  Audio2.hit();
+  flashScreen();
+  // repousse le fantôme
+  const dx = ghost.x - player.x, dy = ghost.y - player.y;
+  const d = Math.hypot(dx,dy) || 1;
+  ghost.x += dx/d * 1.2; ghost.y += dy/d * 1.2;
+  ghost.stun = 1.1;
+  updateHud();
+  if(player.lives <= 0) triggerGameOver();
+}
+
+/** Impact d'un projectile sur un fantôme. */
+function hitGhost(g){
+  g.hp--;
+  g.hitFlash = 0.22;
+  g.stun = 0.25;
+  burst(g.x, g.y, "160,230,255", 8, 1.4, 0.35);
+  $("cross").classList.remove("hit"); void $("cross").offsetWidth;
+  $("cross").classList.add("hit");
+  if(g.hp <= 0){
+    g.alive = false;
+    game.kills++;
+    Audio2.ghostDeath();
+    burst(g.x, g.y, "200,240,255", 26, 2.6, 0.9);
+    showToast("Fantôme dissipé !");
+  }
+}
+
+/** Vérifie les conditions de progression / victoire. */
+function checkVictory(){
+  if(game.levelIndex === 0 && game.vinyls >= 3){
+    // Les Backrooms s'ouvrent
+    transitionTo(1, "Une faille s'ouvre…\nBIENVENUE DANS LES BACKROOMS");
+  } else if(game.levelIndex === 1 && game.vinyls >= game.totalVinyls){
+    // Le portail vers la salle disco apparaît
+    if(!sprites.some(s => s.type === "portal")){
+      const rng = makeRng(game.seed + 999);
+      const far = level.reachable.filter(c => level.dist[c[1]*level.w+c[0]] > 5);
+      const spot = (far.length ? far : level.reachable)[(rng()*(far.length||level.reachable.length))|0];
+      sprites.push(makeSprite("portal", spot[0]+0.5, spot[1]+0.5, { scale:1.15, alpha:0.95 }));
+      Audio2.portal();
+      showToast("5/5 VINYLS !\nLa porte disco s'est ouverte…\nSuis le point vert sur la carte.");
+    }
+  }
+}
+
+/** Le joueur entre dans le portail. */
+function enterPortal(){
+  if(state !== STATE.PLAY) return;
+  transitionTo(2, "LA SALLE DISCO COSMIQUE");
+}
+
+/* ================================================================
+   7. RENDU
+   ================================================================ */
+
+/** Ajuste la taille du canvas et la résolution interne. */
+function resize(){
+  const stage = $("stage");
+  const rect = stage.getBoundingClientRect();
+  const ratio = rect.height / Math.max(rect.width, 1);
+  // Résolution interne : ~264 px de large, modulée par le réglage qualité
+  RW = Math.round(clamp(264 * settings.quality, 140, 480));
+  if(RW % 2) RW++;
+  RH = Math.round(RW * ratio);
+  canvas.width = RW;
+  canvas.height = RH;
+  zBuffer = new Float32Array(RW);
+  ctx.imageSmoothingEnabled = false;
+}
+window.addEventListener("resize", resize);
+window.addEventListener("orientationchange", () => setTimeout(resize, 250));
+
+/**
+ * Moteur de raycasting (DDA) — dessine murs, sol et plafond.
+ * Remplit zBuffer[] pour l'occlusion des sprites.
+ */
+function castRays(){
+  const st = level.style;
+  const horizon = (RH/2 + Math.sin(player.bob)*2.5) | 0;
+
+  /* ---- Plafond ---- */
+  let g1 = ctx.createLinearGradient(0,0,0,horizon);
+  g1.addColorStop(0, st.ceilTop); g1.addColorStop(1, st.ceilBot);
+  ctx.fillStyle = g1; ctx.fillRect(0,0,RW,horizon);
+
+  /* ---- Sol ---- */
+  let g2 = ctx.createLinearGradient(0,horizon,0,RH);
+  g2.addColorStop(0, st.floorTop); g2.addColorStop(1, st.floorBot);
+  ctx.fillStyle = g2; ctx.fillRect(0,horizon,RW,RH-horizon);
+
+  /* ---- Lignes de perspective au sol (effet synthwave) ---- */
+  ctx.strokeStyle = st.gridColor; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for(let i=1;i<14;i++){
+    const y = horizon + (RH-horizon) * (i*i) / (14*14);
+    ctx.moveTo(0, y+0.5); ctx.lineTo(RW, y+0.5);
+  }
+  ctx.stroke();
+
+  /* ---- Murs : DDA colonne par colonne ---- */
+  const px = player.x, py = player.y;
+  const dirX = player.dirX, dirY = player.dirY;
+  const planeX = player.planeX, planeY = player.planeY;
+  const fogDist = st.fogDist;
+  const fogR = st.fog[0], fogG = st.fog[1], fogB = st.fog[2];
+
+  for(let x=0; x<RW; x++){
+    const camX = 2*x/RW - 1;
+    const rdx = dirX + planeX*camX;
+    const rdy = dirY + planeY*camX;
+
+    let mapX = px|0, mapY = py|0;
+    const ddx = rdx === 0 ? 1e30 : Math.abs(1/rdx);
+    const ddy = rdy === 0 ? 1e30 : Math.abs(1/rdy);
+    let stepX, stepY, sideX, sideY;
+
+    if(rdx < 0){ stepX = -1; sideX = (px - mapX)*ddx; }
+    else       { stepX =  1; sideX = (mapX + 1 - px)*ddx; }
+    if(rdy < 0){ stepY = -1; sideY = (py - mapY)*ddy; }
+    else       { stepY =  1; sideY = (mapY + 1 - py)*ddy; }
+
+    let hit = 0, side = 0, tex = 1, guard = 0;
+    while(hit === 0 && guard++ < 128){
+      if(sideX < sideY){ sideX += ddx; mapX += stepX; side = 0; }
+      else             { sideY += ddy; mapY += stepY; side = 1; }
+      if(mapX < 0 || mapY < 0 || mapX >= level.w || mapY >= level.h){ hit = 1; tex = 1; break; }
+      const cell = level.grid[mapY*level.w + mapX];
+      if(cell !== 0){ hit = 1; tex = cell; }
+    }
+
+    const perp = side === 0 ? (sideX - ddx) : (sideY - ddy);
+    const dist = Math.max(perp, 0.0001);
+    zBuffer[x] = dist;
+
+    const lineH = (RH / dist) | 0;
+    let drawStart = -lineH/2 + horizon;
+    let drawEnd   =  lineH/2 + horizon;
+
+    // Coordonnée de texture X
+    let wallX = side === 0 ? py + dist*rdy : px + dist*rdx;
+    wallX -= Math.floor(wallX);
+    let texX = (wallX * TEX_SIZE) | 0;
+    if((side === 0 && rdx > 0) || (side === 1 && rdy < 0)) texX = TEX_SIZE - texX - 1;
+    texX = clamp(texX, 0, TEX_SIZE-1);
+
+    const t = textures[tex] || textures[1];
+    const img = side === 1 ? t.dark : t.light;
+    ctx.drawImage(img, texX, 0, 1, TEX_SIZE, x, drawStart, 1, drawEnd-drawStart);
+
+    // Brouillard de distance
+    const fog = clamp(dist / fogDist, 0, 1);
+    if(fog > 0.02){
+      ctx.fillStyle = `rgba(${fogR},${fogG},${fogB},${fog*0.92})`;
+      ctx.fillRect(x, drawStart, 1, drawEnd-drawStart);
+    }
+  }
+}
+
+/* --- Canevas de travail pour teinter les sprites --- */
+const scratch = newCanvas(8,8);
+const sctx = scratch.getContext("2d");
+
+/** Dessine tous les sprites (billboards) avec occlusion par zBuffer. */
+function drawSprites(){
+  const st = level.style;
+  const horizon = (RH/2 + Math.sin(player.bob)*2.5);
+  const px = player.x, py = player.y;
+
+  // Tri arrière → avant
+  const list = sprites.filter(s => s.alive);
+  for(const s of list) s.dist = (s.x-px)*(s.x-px) + (s.y-py)*(s.y-py);
+  list.sort((a,b) => b.dist - a.dist);
+
+  const invDet = 1.0 / (player.planeX*player.dirY - player.dirX*player.planeY);
+
+  for(const s of list){
+    const img = spriteImage(s);
+    if(!img) continue;
+
+    const sx = s.x - px, sy = s.y - py;
+    const tx = invDet * (player.dirY*sx - player.dirX*sy);
+    const ty = invDet * (-player.planeY*sx + player.planeX*sy);
+    if(ty <= 0.12) continue;                     // derrière la caméra
+
+    const screenX = (RW/2) * (1 + tx/ty);
+    const h = Math.abs(RH/ty) * s.scale;
+    const w = h * (img.width/img.height);
+    if(w < 1 || h < 1) continue;
+
+    const vMove = (s.vOffset * RH) / ty;
+    const yTop = horizon - h/2 + vMove;
+
+    const startX = Math.floor(screenX - w/2);
+    const endX = Math.ceil(screenX + w/2);
+    if(endX < 0 || startX >= RW) continue;
+
+    const iw = Math.max(1, Math.ceil(w)), ih = Math.max(1, Math.ceil(h));
+    const fog = clamp(ty / st.fogDist, 0, 1);
+
+    // Pré-rendu du sprite (taille écran) avec teinte de brouillard
+    if(scratch.width !== iw || scratch.height !== ih){
+      scratch.width = iw; scratch.height = ih;
+    } else {
+      sctx.clearRect(0,0,iw,ih);
+    }
+    sctx.imageSmoothingEnabled = true;
+    sctx.globalCompositeOperation = "source-over";
+    sctx.globalAlpha = 1;
+    sctx.drawImage(img, 0, 0, iw, ih);
+    if(fog > 0.03){
+      sctx.globalCompositeOperation = "source-atop";
+      sctx.fillStyle = `rgba(${st.fog[0]},${st.fog[1]},${st.fog[2]},${fog*0.88})`;
+      sctx.fillRect(0,0,iw,ih);
+    }
+
+    // Blit par tranches visibles (regroupées pour limiter les appels)
+    ctx.globalAlpha = clamp(s.alpha, 0, 1);
+    let runStart = -1;
+    const from = Math.max(0, startX), to = Math.min(RW, endX);
+    for(let x=from; x<=to; x++){
+      const visible = x < to && zBuffer[x] > ty;
+      if(visible && runStart < 0) runStart = x;
+      if((!visible || x === to) && runStart >= 0){
+        const runEnd = x;
+        const srcX = (runStart - startX) / w * iw;
+        const srcW = Math.max(0.5, (runEnd - runStart) / w * iw);
+        ctx.drawImage(scratch, srcX, 0, srcW, ih, runStart, yTop, runEnd-runStart, h);
+        runStart = -1;
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function spriteImage(s){
+  switch(s.type){
+    case "vinyl":  return SPR.vinyl;
+    case "ghost":  return s.hitFlash > 0 ? SPR.ghostHit : SPR.ghost;
+    case "bolt":   return SPR.bolt;
+    case "portal": return SPR.portal;
+    case "disco":  return SPR.disco;
+  }
+  return null;
+}
+
+/** Particules projetées en billboards minuscules. */
+function drawParticles(){
+  const px = player.x, py = player.y;
+  const invDet = 1.0/(player.planeX*player.dirY - player.dirX*player.planeY);
+  const horizon = RH/2 + Math.sin(player.bob)*2.5;
+  for(const p of particles){
+    const sx = p.x - px, sy = p.y - py;
+    const tx = invDet*(player.dirY*sx - player.dirX*sy);
+    const ty = invDet*(-player.planeY*sx + player.planeX*sy);
+    if(ty <= 0.2) continue;
+    const scr = (RW/2)*(1 + tx/ty);
+    if(scr < -4 || scr > RW+4) continue;
+    const ix = scr|0;
+    if(ix >= 0 && ix < RW && zBuffer[ix] < ty) continue;
+    const size = clamp(3/ty, 0.6, 8);
+    const y = horizon + (0.1 - p.z)*RH/ty;
+    ctx.fillStyle = `rgba(${p.color},${clamp(p.life/p.max,0,1)})`;
+    ctx.fillRect(scr - size/2, y - size/2, size, size);
+  }
+}
+
+/** Lasers rainbow + éclats de la boule disco (niveau final). */
+function drawDiscoFx(){
+  const t = game.time;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const cx = RW/2, cy = RH*0.42;
+  for(let i=0;i<10;i++){
+    const a = t*0.9 + i*TAU/10;
+    const len = RH*1.2;
+    ctx.strokeStyle = `hsla(${(i*36 + t*60)%360},100%,62%,${0.10 + 0.06*Math.sin(t*3+i)})`;
+    ctx.lineWidth = 2 + 2*Math.abs(Math.sin(t*2+i));
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a)*len, cy + Math.sin(a)*len*0.75);
+    ctx.stroke();
+  }
+  // scintillements
+  for(let i=0;i<18;i++){
+    const a = t*0.5 + i*1.3;
+    const r = 30 + ((i*37)%90);
+    const x = cx + Math.cos(a)*r*1.4, y = cy + Math.sin(a*1.3)*r*0.7;
+    ctx.fillStyle = `hsla(${(i*47+t*90)%360},100%,75%,.5)`;
+    ctx.fillRect(x, y, 2, 2);
+  }
+  ctx.restore();
+}
+
+/** Voile coloré (dégâts, flash du canon, ambiance backrooms). */
+function drawOverlays(){
+  // flash du tir
+  if(muzzleFlash > 0){
+    ctx.fillStyle = `rgba(180,255,255,${muzzleFlash*0.18})`;
+    ctx.fillRect(0,0,RW,RH);
+  }
+  // dégâts
+  if(player.hurtFx > 0){
+    ctx.fillStyle = `rgba(255,0,50,${player.hurtFx*0.35})`;
+    ctx.fillRect(0,0,RW,RH);
+  }
+  // clignotement d'invulnérabilité
+  if(player.invuln > 0 && Math.sin(game.time*30) > 0.4){
+    ctx.fillStyle = "rgba(255,255,255,0.05)";
+    ctx.fillRect(0,0,RW,RH);
+  }
+  // Backrooms : lumière fluorescente qui vacille
+  if(level.index === 1){
+    const flick = 0.05 + 0.05*Math.max(0, Math.sin(game.time*17)*Math.sin(game.time*3.3));
+    ctx.fillStyle = `rgba(255,250,180,${flick})`;
+    ctx.fillRect(0,0,RW,RH);
+  }
+  // vignette
+  const vg = ctx.createRadialGradient(RW/2, RH/2, RH*0.25, RW/2, RH/2, RH*0.72);
+  vg.addColorStop(0,"rgba(0,0,0,0)");
+  vg.addColorStop(1,"rgba(0,0,0,.55)");
+  ctx.fillStyle = vg; ctx.fillRect(0,0,RW,RH);
+}
+
+/** Arme du joueur : le « Groove Blaster » néon, dessiné en bas de l'écran. */
+function drawWeapon(){
+  const chg = 1 - clamp(game.cooldown/game.fireRate, 0, 1);   // 0 → 1 pendant la recharge
+  const recoil = (1 - chg) * RH * 0.035;                      // recul à chaque tir
+  const bobY = Math.abs(Math.sin(player.bob)) * 3;
+  const bobX = Math.sin(player.bob*0.5) * 4;
+
+  const cx = RW*0.53 + bobX;                 // légèrement à droite : arme tenue à la main droite
+  const base = RH + recoil + bobY;           // bas de l'arme (hors écran)
+  const u = RW * 0.046;                      // unité de dessin (basée sur la largeur → stable selon le ratio)
+
+  ctx.save();
+  ctx.lineJoin = "round";
+
+  // --- Poignée (inclinée) ---
+  ctx.fillStyle = "#1a0330";
+  ctx.beginPath();
+  ctx.moveTo(cx - u*1.4, base);
+  ctx.lineTo(cx - u*0.4, base - u*3.4);
+  ctx.lineTo(cx + u*1.9, base - u*3.4);
+  ctx.lineTo(cx + u*1.4, base);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(138,43,226,.9)"; ctx.lineWidth = 1.2; ctx.stroke();
+
+  // --- Corps / carcasse ---
+  ctx.fillStyle = "#22003d";
+  ctx.beginPath();
+  ctx.moveTo(cx - u*3.6, base - u*3.2);
+  ctx.lineTo(cx - u*3.0, base - u*5.6);
+  ctx.lineTo(cx + u*2.6, base - u*6.2);
+  ctx.lineTo(cx + u*3.4, base - u*3.0);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(0,240,255,.85)"; ctx.lineWidth = 1.4; ctx.stroke();
+
+  // --- Canon ---
+  ctx.fillStyle = "#2c0048";
+  ctx.beginPath();
+  ctx.moveTo(cx - u*1.5, base - u*5.9);
+  ctx.lineTo(cx - u*1.1, base - u*9.4);
+  ctx.lineTo(cx + u*1.1, base - u*9.4);
+  ctx.lineTo(cx + u*1.5, base - u*6.1);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(255,43,214,.9)"; ctx.lineWidth = 1.4; ctx.stroke();
+
+  // --- Anneau émetteur au bout du canon ---
+  ctx.strokeStyle = `rgba(0,240,255,${0.5 + 0.5*chg})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(cx, base - u*9.4, u*1.15, u*0.42, 0, 0, TAU);
+  ctx.stroke();
+  ctx.fillStyle = `rgba(180,255,255,${0.12 + 0.55*chg})`;
+  ctx.beginPath();
+  ctx.ellipse(cx, base - u*9.4, u*0.85, u*0.28, 0, 0, TAU);
+  ctx.fill();
+
+  // --- Cellule d'énergie : se remplit pendant la recharge ---
+  const cellX = cx - u*2.3, cellY = base - u*5.4, cellW = u*1.5, cellH = u*1.9;
+  ctx.fillStyle = "rgba(0,0,0,.55)";
+  ctx.fillRect(cellX, cellY, cellW, cellH);
+  ctx.fillStyle = `rgba(0,240,255,${0.45 + 0.5*chg})`;
+  ctx.fillRect(cellX, cellY + cellH*(1-chg), cellW, cellH*chg);
+  ctx.strokeStyle = "rgba(255,210,74,.8)"; ctx.lineWidth = 1;
+  ctx.strokeRect(cellX, cellY, cellW, cellH);
+
+  // --- Nervures néon sur la carcasse ---
+  ctx.strokeStyle = "rgba(255,43,214,.5)"; ctx.lineWidth = 1;
+  for(let i=0;i<3;i++){
+    const yy = base - u*(3.6 + i*0.7);
+    ctx.beginPath(); ctx.moveTo(cx + u*0.4, yy); ctx.lineTo(cx + u*3.0, yy - u*0.15); ctx.stroke();
+  }
+
+  // --- Lueur de bouche au moment du tir ---
+  if(muzzleFlash > 0){
+    ctx.globalCompositeOperation = "lighter";
+    const my = base - u*9.6;
+    const gr = ctx.createRadialGradient(cx, my, 1, cx, my, RH*0.09*muzzleFlash + 6);
+    gr.addColorStop(0, `rgba(255,255,255,${muzzleFlash})`);
+    gr.addColorStop(.35, `rgba(0,240,255,${muzzleFlash*0.65})`);
+    gr.addColorStop(1, "rgba(255,43,214,0)");
+    ctx.fillStyle = gr;
+    ctx.fillRect(cx - RH*0.12, my - RH*0.12, RH*0.24, RH*0.24);
+  }
+  ctx.restore();
+}
+
+/** Mini-carte (vue locale). */
+function drawMinimap(){
+  if(!settings.minimap || !level) return;
+  const S = mmCanvas.width, R = 9;   // rayon en cases
+  mmCtx.clearRect(0,0,S,S);
+  mmCtx.fillStyle = "rgba(2,0,10,.55)";
+  mmCtx.fillRect(0,0,S,S);
+  const cell = S/(R*2);
+  const pxi = player.x, pyi = player.y;
+
+  for(let dy=-R; dy<R; dy++){
+    for(let dx=-R; dx<R; dx++){
+      const mx = (pxi+dx)|0, my = (pyi+dy)|0;
+      if(mx<0||my<0||mx>=level.w||my>=level.h) continue;
+      const v = level.grid[my*level.w+mx];
+      if(v === 0) continue;
+      const sx = (mx - pxi + R)*cell, sy = (my - pyi + R)*cell;
+      mmCtx.fillStyle = level.index === 1 ? "rgba(210,190,110,.7)" : "rgba(0,240,255,.45)";
+      mmCtx.fillRect(sx, sy, cell+0.6, cell+0.6);
+    }
+  }
+  // entités
+  for(const s of sprites){
+    if(!s.alive) continue;
+    const dx = s.x - pxi, dy = s.y - pyi;
+    if(Math.abs(dx) > R || Math.abs(dy) > R) continue;
+    const sx = (dx+R)*cell, sy = (dy+R)*cell;
+    let col = null, size = 3;
+    if(s.type === "vinyl") col = "#ffd24a";
+    else if(s.type === "ghost") col = "rgba(255,80,160,.9)";
+    else if(s.type === "portal"){ col = "#33ffaa"; size = 5; }
+    else if(s.type === "disco"){ col = "#ffffff"; size = 5; }
+    if(!col) continue;
+    mmCtx.fillStyle = col;
+    mmCtx.beginPath(); mmCtx.arc(sx, sy, size/2, 0, TAU); mmCtx.fill();
+  }
+  // joueur
+  mmCtx.save();
+  mmCtx.translate(S/2, S/2);
+  mmCtx.rotate(player.angle + Math.PI/2);
+  mmCtx.fillStyle = "#ffffff";
+  mmCtx.beginPath();
+  mmCtx.moveTo(0,-5); mmCtx.lineTo(4,4); mmCtx.lineTo(0,2); mmCtx.lineTo(-4,4);
+  mmCtx.closePath(); mmCtx.fill();
+  mmCtx.restore();
+}
+
+/** Rendu complet d'une image. */
+function render(){
+  if(!level) return;
+  castRays();
+  drawSprites();
+  drawParticles();
+  if(level.index === 2) drawDiscoFx();
+  drawWeapon();
+  drawOverlays();
+  drawMinimap();
+}
+
+/* ================================================================
+   8. INTERFACE, ÉTATS & BOUCLE PRINCIPALE
+   ================================================================ */
+
+let toastTimer = null;
+function showToast(msg){
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+function flashScreen(){
+  const f = $("flash");
+  f.style.transition = "none";
+  f.style.opacity = "0.65";
+  requestAnimationFrame(() => {
+    f.style.transition = "opacity .45s ease-out";
+    f.style.opacity = "0";
+  });
+}
+
+function updateHud(){
+  $("vinylCount").textContent = `${game.vinyls}/${game.totalVinyls}`;
+  const hearts = [];
+  for(let i=0;i<3;i++){
+    hearts.push(`<span class="${i < player.lives ? "" : "life-lost"}">❤️</span>`);
+  }
+  $("lifeIcons").innerHTML = hearts.join("");
+}
+
+function show(id){ $(id).classList.remove("hidden"); }
+function hide(id){ $(id).classList.add("hidden"); }
+
+function showMainMenu(){
+  state = STATE.MENU;
+  hide("menu");                 // force reflow d'état propre
+  show("menu");
+  hide("hud"); hide("touch");
+  hide("pause"); hide("win"); hide("over");
+  Audio2.stopMusic();
+  updateGyroState();
+}
+
+function startGame(){
+  // Réinitialisation complète
+  game.vinyls = 0; game.kills = 0; game.shots = 0; game.time = 0;
+  game.cooldown = 0;
+  game.seed = (Math.random()*1e9)|0;
+  player.lives = 3; player.hurtFx = 0; player.bob = 0; player.stepAcc = 0;
+  particles = [];
+
+  Audio2.init(); Audio2.resume();
+  Audio2.setMusic(settings.music); Audio2.setSfx(settings.sfx);
+  Audio2.startMusic(0);
+
+  loadLevel(0);
+  hide("menu"); hide("pause"); hide("win"); hide("over");
+  show("hud"); show("touch");
+  state = STATE.PLAY;
+  showToast("Trouve les vinyls sacrés !");
+  requestFullscreenIfMobile();
+}
+
+function pauseGame(){
+  if(state !== STATE.PLAY) return;
+  state = STATE.PAUSE;
+  $("pauseInfo").innerHTML =
+    `Vinyls : <b>${game.vinyls}/${game.totalVinyls}</b> · Vies : <b>${player.lives}</b><br>` +
+    `Fantômes dissipés : <b>${game.kills}</b> · Temps : <b>${fmtTime(game.time)}</b>`;
+  show("pause");
+}
+function resumeGame(){
+  hide("pause"); hide("options"); hide("rules");
+  state = STATE.PLAY;
+  Audio2.resume();
+}
+
+function triggerGameOver(){
+  state = STATE.OVER;
+  Audio2.stopMusic();
+  $("overStats").innerHTML =
+    `Vinyls récupérés : <b>${game.vinyls}/${game.totalVinyls}</b><br>` +
+    `Fantômes dissipés : <b>${game.kills}</b><br>` +
+    `Temps de survie : <b>${fmtTime(game.time)}</b>`;
+  hide("hud"); hide("touch");
+  show("over");
+}
+
+function triggerWin(){
+  if(state !== STATE.PLAY) return;
+  state = STATE.WIN;
+  Audio2.victory();
+  Audio2.stopMusic();
+  $("winStats").innerHTML =
+    `Vinyls sacrés : <b>${game.vinyls}/${game.totalVinyls}</b><br>` +
+    `Fantômes dissipés : <b>${game.kills}</b><br>` +
+    `Tirs : <b>${game.shots}</b> · Temps : <b>${fmtTime(game.time)}</b><br>` +
+    `Vies restantes : <b>${player.lives}</b>`;
+  hide("hud"); hide("touch");
+  show("win");
+}
+
+function fmtTime(s){
+  const m = (s/60)|0, r = (s%60)|0;
+  return `${m}:${r<10?"0":""}${r}`;
+}
+
+/** Transition fondue vers un autre niveau. */
+function transitionTo(index, message){
+  if(state === STATE.TRANSITION) return;
+  const prev = state;
+  state = STATE.TRANSITION;
+  const fade = $("fade");
+  fade.style.opacity = "1";
+  Audio2.portal();
+  setTimeout(() => {
+    loadLevel(index);
+    Audio2.setMode(index);
+    showToast(message);
+    fade.style.opacity = "0";
+    state = prev === STATE.TRANSITION ? STATE.PLAY : STATE.PLAY;
+  }, 520);
+}
+
+function toggleMinimap(){
+  settings.minimap = !settings.minimap;
+  $("minimap").classList.toggle("hidden", !settings.minimap);
+  $("mapChk").checked = settings.minimap;
+}
+
+function requestFullscreenIfMobile(){
+  const isTouch = matchMedia("(pointer:coarse)").matches;
+  if(!isTouch) return;
+  const el = document.documentElement;
+  if(document.fullscreenElement) return;
+  if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+  else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+}
+
+/* ---------------- Câblage de l'interface ---------------- */
+function bindUI(){
+  $("btnPlay").addEventListener("click", () => { Audio2.init(); Audio2.resume(); startGame(); });
+  $("btnRules").addEventListener("click", () => show("rules"));
+  $("btnRules2").addEventListener("click", () => show("rules"));
+  $("btnRulesClose").addEventListener("click", () => hide("rules"));
+  $("btnOptions").addEventListener("click", () => show("options"));
+  $("btnOptions2").addEventListener("click", () => show("options"));
+  $("btnOptClose").addEventListener("click", () => hide("options"));
+  $("btnGyro").addEventListener("click", () => { Audio2.init(); requestGyroscopePermission(); });
+  $("btnGyro2").addEventListener("click", () => requestGyroscopePermission());
+  $("btnCalib").addEventListener("click", calibrateGyro);
+  $("btnResume").addEventListener("click", resumeGame);
+  $("btnQuit").addEventListener("click", () => { hide("pause"); showMainMenu(); });
+  $("btnReplay").addEventListener("click", () => { hide("win"); showMainMenu(); });
+  $("btnRetry").addEventListener("click", () => { hide("over"); startGame(); });
+  $("btnMenu2").addEventListener("click", () => { hide("over"); showMainMenu(); });
+
+  // --- Sliders ---
+  const bindRange = (id, valId, fmt, apply) => {
+    const el = $(id), out = $(valId);
+    const upd = () => { const v = parseFloat(el.value); out.textContent = fmt(v); apply(v); };
+    el.addEventListener("input", upd);
+    upd();
+  };
+  bindRange("sensRange","sensVal", v => v.toFixed(1)+"×", v => settings.sensitivity = v);
+  bindRange("deadRange","deadVal", v => v.toFixed(0)+"°",  v => settings.deadzone = v);
+  bindRange("musRange","musVal",  v => Math.round(v*100)+"%", v => { settings.music = v; Audio2.setMusic(v); });
+  bindRange("sfxRange","sfxVal",  v => Math.round(v*100)+"%", v => { settings.sfx = v; Audio2.setSfx(v); });
+  bindRange("qualRange","qualVal",v => v.toFixed(1)+"×", v => { settings.quality = v; resize(); });
+
+  $("gyroChk").addEventListener("change", e => settings.gyroEnabled = e.target.checked);
+  $("mapChk").addEventListener("change", e => {
+    settings.minimap = e.target.checked;
+    $("minimap").classList.toggle("hidden", !settings.minimap);
+  });
+  $("crtChk").addEventListener("change", e => {
+    settings.crt = e.target.checked;
+    $("crt").style.display = settings.crt ? "" : "none";
+  });
+
+  // Empêche le scroll/zoom parasite sur mobile
+  document.addEventListener("gesturestart", e => e.preventDefault());
+  document.addEventListener("dblclick", e => e.preventDefault(), {passive:false});
+  document.addEventListener("touchmove", e => {
+    if(e.target.closest("input[type=range]") || e.target.closest(".modal-box") || e.target.closest(".screen")) return;
+    e.preventDefault();
+  }, {passive:false});
+
+  // Reprise du contexte audio au premier geste (politique navigateurs)
+  const kick = () => { Audio2.init(); Audio2.resume(); };
+  window.addEventListener("pointerdown", kick, { once:true });
+  window.addEventListener("keydown", kick, { once:true });
+
+  // Pause automatique si l'onglet passe en arrière-plan
+  document.addEventListener("visibilitychange", () => {
+    if(document.hidden && state === STATE.PLAY) pauseGame();
+  });
+}
+
+/* ---------------- Boucle principale ---------------- */
+let lastTime = 0;
+let fpsAcc = 0, fpsFrames = 0, autoQuality = 1;
+
+function gameLoop(now){
+  requestAnimationFrame(gameLoop);
+  if(!lastTime) lastTime = now;
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  if(dt > 0.1) dt = 0.1;             // évite les sauts après une pause
+
+  // Mesure de performance → résolution adaptative
+  fpsAcc += dt; fpsFrames++;
+  if(fpsAcc > 1.5){
+    const fps = fpsFrames / fpsAcc;
+    fpsAcc = 0; fpsFrames = 0;
+    if(fps < 40 && autoQuality > 0.55){ autoQuality -= 0.12; resizeAuto(); }
+    else if(fps > 57 && autoQuality < 1){ autoQuality = Math.min(1, autoQuality + 0.06); resizeAuto(); }
+  }
+
+  if(state === STATE.PLAY){
+    update(dt);
+    render();
+  } else if(state === STATE.TRANSITION || state === STATE.PAUSE){
+    // On continue à afficher la scène figée
+    if(level) render();
+  } else if(state === STATE.WIN || state === STATE.OVER){
+    if(level){ game.time += dt*0; render(); }
+  }
+
+  // Bouton de tir : indication visuelle du rechargement
+  const rf = $("reloadFill");
+  const ratio = 1 - clamp(game.cooldown / game.fireRate, 0, 1);
+  rf.style.transform = `scaleX(${ratio})`;
+  $("fireBtn").classList.toggle("cooling", game.cooldown > 0);
+}
+
+function resizeAuto(){
+  const saved = settings.quality;
+  settings.quality = saved * autoQuality;
+  resize();
+  settings.quality = saved;
+}
+
+/* ---------------- Initialisation ---------------- */
+function init(){
+  buildTextures();
+  buildSprites();
+  resize();
+  bindUI();
+  handleTouchInput();
+
+  // Écoute passive du gyroscope si aucune permission n'est requise (Android)
+  if("DeviceOrientationEvent" in window && typeof DeviceOrientationEvent.requestPermission !== "function"){
+    window.addEventListener("deviceorientation", onOrientation, true);
+    gyro.granted = true;
+  }
+  updateGyroState();
+
+  showMainMenu();
+  requestAnimationFrame(gameLoop);
+}
+
+init();
+</script>
+</body>
+</html>
